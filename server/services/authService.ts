@@ -3,7 +3,7 @@ import type {Response} from 'express'
 import dotenv from 'dotenv'
 import strict from 'node:assert/strict';
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 const ACCESS_TOKEN_SECRET : string = process.env.ACCESS_TOKEN_SECRET!;
 const REFRESH_TOKEN_SECRET : string = process.env.REFRESH_TOKEN_SECRET!;

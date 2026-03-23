@@ -12,7 +12,7 @@ import dotenv from 'dotenv';
 import type { AuthRequest } from '../middleware/auth.ts';
 import { success } from 'zod';
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 export const register = asyncHandler(async(req: Request, res: Response) => {
     const { name , email, password } = req.body;

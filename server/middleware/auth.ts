@@ -5,7 +5,7 @@ import User from '../models/User.ts';
 import type {IUser} from '../models/User.ts';
 import dotenv from 'dotenv';
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 // Extend express Request type to include the user
 export interface AuthRequest extends Request {

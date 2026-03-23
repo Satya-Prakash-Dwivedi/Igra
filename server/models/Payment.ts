@@ -1,72 +1,84 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
-/**
- * 1. THE INTERFACE
- * Represents a financial transaction within the platform.
- */
+// ─── Payment for credit purchases via PayPal ──────────────────
+export enum PaymentStatus {
+  CREATED  = 'CREATED',
+  APPROVED = 'APPROVED',
+  CAPTURED = 'CAPTURED',
+  FAILED   = 'FAILED',
+  REFUNDED = 'REFUNDED',
+}
+
 export interface IPayment extends Document {
-  invoice_id: Types.ObjectId;
-  client_id: Types.ObjectId;
-  amount: number;
+  userId: Types.ObjectId;
+  provider: string;
+  paypalOrderId: string;
+  paypalCaptureId?: string;
+  amountCents: number;
   currency: string;
-  payment_method: 'stripe' | 'paypal' | 'bank_transfer' | 'manual';
-  gateway_txn_id?: string;
-  gateway_status?: string;
-  status: 'pending' | 'completed' | 'failed' | 'refunded';
-  failure_reason?: string;
-  paid_at?: Date;
+  creditsPurchased: number;
+  packId: string;
+  status: PaymentStatus;
+  idempotencyKey: string;
+  failureReason?: string;
+  capturedAt?: Date;
   createdAt: Date;
 }
 
-/**
- * 2. THE SCHEMA
- */
 const paymentSchema = new Schema<IPayment>(
   {
-    invoice_id: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'Invoice', 
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
       required: true,
-      index: true 
+      index: true,
     },
-    client_id: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'User', 
-      required: true,
-      index: true 
-    },
-    amount: { 
-      type: Number, 
-      required: true,
-      min: 0 
-    },
-    currency: { 
-      type: String, 
-      default: 'USD' 
-    },
-    payment_method: {
+    provider: {
       type: String,
-      enum: ['stripe', 'paypal', 'bank_transfer', 'manual']
+      default: 'paypal',
     },
-    gateway_txn_id: { 
-      type: String, 
-      index: true 
+    paypalOrderId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
     },
-    gateway_status: String,
+    paypalCaptureId: String,
+    amountCents: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    currency: {
+      type: String,
+      default: 'USD',
+    },
+    creditsPurchased: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    packId: {
+      type: String,
+      required: true,
+    },
     status: {
       type: String,
       required: true,
-      enum: ['pending', 'completed', 'failed', 'refunded'],
-      default: 'pending',
-      index: true
+      enum: Object.values(PaymentStatus),
+      default: PaymentStatus.CREATED,
+      index: true,
     },
-    failure_reason: String,
-    paid_at: Date,
+    idempotencyKey: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    failureReason: String,
+    capturedAt: Date,
   },
   {
-    // Accounting Rule: Financial records are usually permanent history.
-    // We only need 'createdAt' to track when the transaction started.
-    timestamps: { createdAt: true, updatedAt: false }
+    timestamps: { createdAt: true, updatedAt: false },
   }
 );
 

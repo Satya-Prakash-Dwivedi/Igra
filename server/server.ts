@@ -13,6 +13,7 @@ import { errorHandler, notFound } from './middleware/errorHandler.ts';
 import { requestLogger } from './middleware/requestLogger.ts';
 import authRoutes from './routes/authRoutes.ts';
 import orderRoutes from './routes/orderRoutes.ts';
+import channelRoutes from './routes/channelRoutes.ts';
 import creditRoutes from './routes/creditRoutes.ts';
 import billingRoutes from './routes/billingRoutes.ts';
 import uploadRoutes from './routes/uploadRoutes.ts';
@@ -92,6 +93,7 @@ app.use('/api', limiter);
 app.use('/api/v1/auth',      authRoutes);
 app.use('/api/v1/orders',    orderRoutes);
 app.use('/api/v1/orders',    messageRoutes);   // nested: /orders/:id/messages
+app.use('/api/v1/channels',  channelRoutes);
 app.use('/api/v1/credits',   creditRoutes);
 app.use('/api/v1/billing',   billingRoutes);
 app.use('/api/v1/uploads',   uploadRoutes);

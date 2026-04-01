@@ -5,7 +5,10 @@ import bcrypt from 'bcrypt';
  * Interface for User document
  */
 export interface IUser extends Document {
+  id: string; // Explicitly added for easier use in controllers
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   password: string;
   avatar: string;
@@ -18,6 +21,7 @@ export interface IUser extends Document {
     website?: string;
     industry?: string;
   };
+  youtubeChannel?: string;
   notificationPreferences: {
     email: boolean;
     inApp: boolean;
@@ -36,6 +40,16 @@ const userSchema = new Schema<IUser>(
       required: [true, 'Name is required'],
       trim: true,
       maxLength: [256, 'Name cannot exceed 256 characters'],
+    },
+    firstName: {
+      type: String,
+      trim: true,
+      maxLength: [128, 'First name cannot exceed 128 characters'],
+    },
+    lastName: {
+      type: String,
+      trim: true,
+      maxLength: [128, 'Last name cannot exceed 128 characters'],
     },
     email: {
       type: String,
@@ -76,6 +90,10 @@ const userSchema = new Schema<IUser>(
       logo: { type: String },
       website: { type: String },
       industry: { type: String },
+    },
+    youtubeChannel: {
+      type: String,
+      trim: true,
     },
     notificationPreferences: {
       email: { type: Boolean, default: true },

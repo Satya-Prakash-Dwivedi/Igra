@@ -10,7 +10,7 @@ import User from '../models/User.ts';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import type { AuthRequest } from '../middleware/auth.ts';
-import { success } from 'zod';
+import { updateProfileSchema } from '../validators/userValidator.ts';
 
 dotenv.config({ quiet: true })
 
@@ -143,5 +143,33 @@ export const logout = asyncHandler(async(req: Request, res : Response) => {
     res.status(200).json({
         success: true,
         message : 'User logged out successfully',
+    });
+});
+
+export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
+    // 1. Validate request body
+    const validatedData = updateProfileSchema.parse(req.body);
+
+    // 2. Call service to update user
+    const updatedUser = await userService.updateUserProfile(req.user!.id, validatedData);
+
+    // 3. Send response
+    res.json({
+        success: true,
+        data: {
+            user: {
+                id: updatedUser.id,
+                name: updatedUser.name,
+                firstName: updatedUser.firstName,
+                lastName: updatedUser.lastName,
+                email: updatedUser.email,
+                avatar: updatedUser.avatar,
+                role: updatedUser.role,
+                company: updatedUser.company,
+                youtubeChannel: updatedUser.youtubeChannel,
+                notificationPreferences: updatedUser.notificationPreferences,
+            },
+        },
+        message: 'Profile updated successfully',
     });
 });

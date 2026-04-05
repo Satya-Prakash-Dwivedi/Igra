@@ -45,3 +45,13 @@ export const updateUserProfile = async (userId: string, updateData: any) => {
 
     return await user.save();
 };
+
+/**
+ * List all staff and admin users
+ */
+export const listStaff = async () => {
+    return await User.find({ role: { $in: ['admin', 'staff'] } })
+        .select('name email role avatar')
+        .sort({ name: 1 })
+        .lean();
+};

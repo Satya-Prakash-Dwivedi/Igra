@@ -409,17 +409,22 @@ export async function listAllOrders(status?: string, page = 1, limit = 20) {
   const filter: Record<string, any> = {};
   if (status) filter.status = status;
 
-  const orders = await Order.find(filter)
-    .sort({ createdAt: -1 })
-    .skip((page - 1) * limit)
-    .limit(limit)
-    .populate('userId', 'name email avatar')
-    .lean();
+  const [orders, total] = await Promise.all([
+    Order.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('userId', 'name email')
+      .populate('assignedTo', 'name email')
+      .lean(),
+    Order.countDocuments(filter),
+  ]);
 
-  const total = await Order.countDocuments(filter);
+  const pages = Math.ceil(total / limit);
 
-  return { orders, total, page, limit };
+  return { orders, total, page, pages };
 }
+
 
 // ─── Internal: Sync Order Status Based on Items ───────────────
 async function syncOrderStatus(orderId: string, actorId: string) {

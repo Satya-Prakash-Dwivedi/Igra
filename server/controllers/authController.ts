@@ -6,6 +6,7 @@ import type {Request, Response} from 'express';
 import asyncHandler from 'express-async-handler';
 import * as userService from '../services/userService.ts';
 import * as authService from '../services/authService.ts';
+import * as creditService from '../services/creditService.ts';
 import User from '../models/User.ts';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
@@ -35,6 +36,7 @@ export const register = asyncHandler(async(req: Request, res: Response) => {
                 name : user.name,
                 email : user.email,
                 role : user.role,
+                credits: await creditService.getBalance(user.id),
             },
             access_token,
         },
@@ -76,6 +78,7 @@ export const login = asyncHandler(async(req: Request, res: Response) => {
                 name : user.name,
                 email : user.email,
                 role : user.role,
+                credits: await creditService.getBalance(user.id),
             },
             access_token,
         },
@@ -168,6 +171,7 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
                 company: updatedUser.company,
                 youtubeChannel: updatedUser.youtubeChannel,
                 notificationPreferences: updatedUser.notificationPreferences,
+                credits: await creditService.getBalance(updatedUser.id),
             },
         },
         message: 'Profile updated successfully',

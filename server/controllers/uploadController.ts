@@ -2,6 +2,11 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth.ts';
 import asyncHandler from 'express-async-handler';
 import * as uploadService from '../services/uploadService.ts';
+import * as orderService from '../services/orderService.ts';
+import Asset from '../models/Asset.ts';
+import AssetVersion from '../models/AssetVersion.ts';
+import path from 'path';
+import fs from 'fs';
 
 // ─── Start Upload ─────────────────────────────────────────────
 export const startUpload = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -37,4 +42,65 @@ export const resumeUpload = asyncHandler(async (req: AuthRequest, res: Response)
   const sessionId = req.params.sessionId as string;
   const result = await uploadService.resumeUploadSession(sessionId);
   res.json({ success: true, data: result });
+});
+
+// ─── Handle Local Part Upload ─────────────────────────────────
+export const handleLocalPartUpload = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { sessionId, partNumber } = req.params;
+  const data = req.body as Buffer;
+
+  if (!data || data.length === 0) {
+    res.status(400).json({ error: 'No data received' });
+    return;
+  }
+
+  const uploadId = req.query.u as string;
+  await uploadService.validateLocalPartUpload(sessionId as string, uploadId);
+
+  await uploadService.saveLocalPart(sessionId as string, parseInt(partNumber as string), data);
+  res.json({ success: true });
+});
+
+// ─── View Asset (Stream or Redirect) ──────────────────────────
+export const viewAsset = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const assetId = req.params.assetId as string;
+  const url = await uploadService.getAssetDownloadUrl(assetId);
+
+  if (url.startsWith('http')) {
+    // S3: Redirect to the signed URL
+    res.redirect(url);
+  } else {
+    // Local: Stream the file from disk
+    const asset = await Asset.findById(assetId);
+    if (!asset) {
+      res.status(404).json({ error: 'Asset not found' });
+      return;
+    }
+    const version = await AssetVersion.findById(asset.latestVersionId);
+    if (!version) {
+      res.status(404).json({ error: 'Asset version not found' });
+      return;
+    }
+
+    const filePath = path.join(process.cwd(), version.storageKey);
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({ error: 'File not found on storage' });
+      return;
+    }
+
+    res.setHeader('Content-Type', asset.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${asset.originalName}"`);
+    fs.createReadStream(filePath).pipe(res);
+  }
+});
+
+export const removeAsset = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { oid, iid, aid } = req.params;
+  const result = await orderService.removeAssetFromItem(
+    oid as string,
+    iid as string,
+    req.user!._id.toString(),
+    aid as string
+  );
+  res.json(result);
 });

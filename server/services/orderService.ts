@@ -9,6 +9,7 @@ import * as creditService from './creditService.ts';
 import * as auditService from './auditService.ts';
 import { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.ts';
 import { generateOrderNumber } from '../utils/generateOrderNumber.ts';
+import * as uploadService from './uploadService.ts';
 
 // ─── Create Draft Order ───────────────────────────────────────
 export async function createOrder(userId: string, idempotencyKey: string, title?: string) {
@@ -365,19 +366,58 @@ export async function getOrderDetail(orderId: string) {
       .sort({ orderIndex: 1 })
       .populate('assetId')
       .lean();
-    return {
-      ...item,
-      assets: assetLinks.map((al: any) => ({
-        ...al.assetId,
+
+    const assets = await Promise.all(assetLinks.map(async (al: any) => {
+      const asset = al.assetId;
+      if (!asset) return null;
+
+      // Generate a temporary view/download URL
+      const url = await uploadService.getAssetDownloadUrl(asset._id.toString());
+
+      return {
+        ...asset,
+        url,
         role: al.role,
         orderIndex: al.orderIndex
-      }))
+      };
+    }));
+
+    return {
+      ...item,
+      assets: assets.filter(Boolean)
     };
   }));
 
   const events = await auditService.getOrderTimeline(orderId);
 
   return { order, items, events };
+}
+
+/**
+ * Unlinks an asset from an item and deletes it from storage.
+ */
+export async function removeAssetFromItem(
+  orderId: string,
+  itemId: string,
+  userId: string,
+  assetId: string
+) {
+  const order = await Order.findOne({ _id: orderId, userId });
+  if (!order) throw new Error('Order not found');
+
+  // Find the link
+  const link = await AssetLink.findOne({ orderItemId: itemId, assetId });
+  if (!link) throw new Error('Asset link not found');
+
+  // Delete the link
+  await AssetLink.deleteOne({ _id: link._id });
+
+  // Delete the asset and file
+  await uploadService.deleteAsset(assetId);
+
+  await auditService.appendItemEvent(itemId, 'ASSET_REMOVED', { assetId }, userId);
+
+  return { success: true };
 }
 
 // ─── List Orders ──────────────────────────────────────────────

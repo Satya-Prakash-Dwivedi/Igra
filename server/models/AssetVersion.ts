@@ -3,6 +3,7 @@ import { Schema, model, Document, Types } from 'mongoose';
 export enum AssetVersionStatus {
   UPLOADING = 'UPLOADING',
   SEALED    = 'SEALED',
+  READY     = 'READY',
 }
 
 export interface IAssetVersion extends Document {

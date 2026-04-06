@@ -2,10 +2,19 @@ import mongoose from 'mongoose';
 import Asset from '../models/Asset.ts';
 import AssetVersion, { AssetVersionStatus } from '../models/AssetVersion.ts';
 import UploadSession, { UploadSessionStatus } from '../models/UploadSession.ts';
-import s3Client, { S3_BUCKET, CreateMultipartUploadCommand, getSignedUrl } from '../config/s3.ts';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import s3Client, { 
+  S3_BUCKET, 
+  CreateMultipartUploadCommand, 
+  UploadPartCommand, 
+  CompleteMultipartUploadCommand 
+} from '../config/s3.ts';
+import { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl as getPresignedUrl } from '@aws-sdk/s3-request-presigner';
 import logger, { serializeError } from '../utils/logger.ts';
+import fs from 'fs/promises';
+import path from 'path';
+import { createReadStream, createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
 
 // ─────────────────────────────────────────────────────────────
 // 🔴 RED: S3 operations use dummy/stubbed responses when
@@ -15,7 +24,18 @@ import logger, { serializeError } from '../utils/logger.ts';
 // ─────────────────────────────────────────────────────────────
 
 const DEFAULT_PART_SIZE = 10 * 1024 * 1024; // 10 MB
+const DIRECT_UPLOAD_THRESHOLD = 20 * 1024 * 1024; // 20 MB
 const UPLOAD_EXPIRY_HOURS = 24;
+const UPLOADS_DIR = process.cwd();
+const CHUNKS_DIR = path.resolve('uploads/chunks');
+
+function isS3Disabled() {
+  // Allow explicit override via env or fallback if creds are missing
+  if (process.env.STORAGE_PROVIDER === 'local') return true;
+  return !process.env.AWS_ACCESS_KEY_ID || 
+         process.env.AWS_ACCESS_KEY_ID === 'DUMMY_ACCESS_KEY_ID' ||
+         process.env.AWS_ACCESS_KEY_ID === process.env.AWS_SECRET_ACCESS_KEY; // Detect placeholder/malformed creds
+}
 
 /**
  * Start a resumable multipart upload session.
@@ -48,52 +68,86 @@ export async function startUpload(
   asset.latestVersionId = assetVersion._id;
   await asset.save();
 
-  // 🔴 RED: Replace with real S3 CreateMultipartUpload when credentials ready
-  let providerUploadId = `stub-upload-${Date.now()}`;
+  // ─── 2. Provider Initialization ────────────────────────────
+  let s3Disabled = isS3Disabled();
+  let providerUploadId = `local-${Date.now()}`;
   const presignedUrls: string[] = [];
+  const isDirect = fileSize < DIRECT_UPLOAD_THRESHOLD;
 
-  try {
-    const cmd = new CreateMultipartUploadCommand({
-      Bucket: S3_BUCKET,
-      Key: storageKey,
-      ContentType: mimeType,
-    });
-    const result = await s3Client.send(cmd);
-    providerUploadId = result.UploadId || providerUploadId;
+  if (!s3Disabled) {
+    try {
+      if (isDirect) {
+        // Direct PutObject (much faster for small files)
+        const cmd = new PutObjectCommand({
+          Bucket: S3_BUCKET,
+          Key: storageKey,
+          ContentType: mimeType,
+        });
+        const url = await getPresignedUrl(s3Client, cmd, { expiresIn: 3600 });
+        presignedUrls.push(url);
+        providerUploadId = 'direct-put'; // Skip Multipart ID
+      } else {
+        // Multi-part (better for large files / reliability)
+        const cmd = new CreateMultipartUploadCommand({
+          Bucket: S3_BUCKET,
+          Key: storageKey,
+          ContentType: mimeType,
+        });
+        const result = await s3Client.send(cmd);
+        providerUploadId = result.UploadId!;
 
-    // Generate presigned URLs for each part
-    for (let i = 1; i <= totalParts; i++) {
-      const url = `https://${S3_BUCKET}.s3.amazonaws.com/${storageKey}?partNumber=${i}&uploadId=${providerUploadId}`;
-      presignedUrls.push(url);
+        // Generate presigned URLs for each part
+        for (let i = 1; i <= totalParts; i++) {
+          const partCmd = new UploadPartCommand({
+            Bucket: S3_BUCKET,
+            Key: storageKey,
+            PartNumber: i,
+            UploadId: providerUploadId,
+          });
+          const url = await getPresignedUrl(s3Client, partCmd, { expiresIn: 3600 });
+          presignedUrls.push(url);
+        }
+      }
+    } catch (err) {
+      logger.error('upload.s3_init_failed_falling_back_to_local', { error: serializeError(err) });
+      s3Disabled = true; // Fallback to local storage
+      providerUploadId = `local-${Date.now()}`;
+      presignedUrls.length = 0; // Clear any partial URLs
     }
-  } catch (err) {
-    logger.warn('upload.multipart_stub_mode', {
-      fileName,
-      userId,
-      storageKey,
-      error: serializeError(err),
-    });
-    // Stub: generate fake presigned URLs for development
-    for (let i = 1; i <= totalParts; i++) {
-      presignedUrls.push(`http://localhost:9000/stub/${storageKey}?part=${i}`);
+  }
+
+  if (s3Disabled) {
+    // Local fallback: presigned URLs point to our own API
+    const baseUrl = process.env.VITE_API_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const partCount = isDirect ? 1 : totalParts;
+    for (let i = 1; i <= partCount; i++) {
+       presignedUrls.push(`${baseUrl}/api/v1/uploads/local-part/PENDING/${i}?u=${providerUploadId}`);
     }
   }
 
   const session = await UploadSession.create({
     assetVersionId: assetVersion._id,
     providerUploadId,
-    partSizeBytes: DEFAULT_PART_SIZE,
-    totalParts,
+    partSizeBytes: isDirect ? fileSize : DEFAULT_PART_SIZE,
+    totalParts: isDirect ? 1 : totalParts,
     status: UploadSessionStatus.ACTIVE,
     expiresAt: new Date(Date.now() + UPLOAD_EXPIRY_HOURS * 60 * 60 * 1000),
   });
+
+  // If local, update the PENDING URLs with the actual sessionId
+  if (s3Disabled) {
+    for (let i = 0; i < presignedUrls.length; i++) {
+      presignedUrls[i] = presignedUrls[i].replace('PENDING', session._id.toString());
+    }
+  }
 
   return {
     uploadSessionId: session._id,
     assetId: asset._id,
     presignedUrls,
-    partSizeBytes: DEFAULT_PART_SIZE,
-    totalParts,
+    partSizeBytes: isDirect ? fileSize : DEFAULT_PART_SIZE,
+    totalParts: isDirect ? 1 : totalParts,
+    isDirect,
   };
 }
 
@@ -139,16 +193,60 @@ export async function finalizeUpload(sessionId: string) {
     throw new Error('Upload session is not active');
   }
 
-  // 🔴 RED: Replace with real S3 CompleteMultipartUpload
-  // const cmd = new CompleteMultipartUploadCommand({ ... });
-  // await s3Client.send(cmd);
+  const assetVersion = await AssetVersion.findById(session.assetVersionId);
+  if (!assetVersion) throw new Error('AssetVersion not found');
+
+  if (!isS3Disabled()) {
+    // ─── 1. S3 Finalization ───────────────────────────────────
+    try {
+      const cmd = new CompleteMultipartUploadCommand({
+        Bucket: S3_BUCKET,
+        Key: assetVersion.storageKey,
+        UploadId: session.providerUploadId,
+        MultipartUpload: {
+          Parts: session.partsUploaded
+            .sort((a, b) => a.partNumber - b.partNumber)
+            .map(p => ({
+              PartNumber: p.partNumber,
+              ETag: p.etag,
+            })),
+        },
+      });
+      await s3Client.send(cmd);
+    } catch (err) {
+      logger.error('upload.s3_finalize_failed', { error: serializeError(err) });
+      throw new Error('S3 completion failed');
+    }
+  } else {
+    // ─── 2. Local Finalization (Zip/Merge Chunks) ──────────────
+    const finalPath = path.join(UPLOADS_DIR, assetVersion.storageKey);
+    const sessionChunksDir = path.join(CHUNKS_DIR, session._id.toString());
+
+    await fs.mkdir(path.dirname(finalPath), { recursive: true });
+
+    const sortedParts = session.partsUploaded.sort((a, b) => a.partNumber - b.partNumber);
+    const writeStream = createWriteStream(finalPath);
+
+    for (const part of sortedParts) {
+      const partPath = path.join(sessionChunksDir, part.partNumber.toString());
+      try {
+        await fs.access(partPath);
+        await pipeline(createReadStream(partPath), writeStream, { end: false });
+      } catch (err) {
+        writeStream.destroy();
+        logger.error('upload.local_finalize_missing_part', { sessionId: session._id, partNumber: part.partNumber });
+        throw new Error(`Part ${part.partNumber} is missing from disk. Cannot finalize.`);
+      }
+    }
+    writeStream.end();
+
+    // Cleanup chunks
+    await fs.rm(sessionChunksDir, { recursive: true, force: true });
+  }
 
   // Seal the asset version
-  const assetVersion = await AssetVersion.findById(session.assetVersionId);
-  if (assetVersion) {
-    assetVersion.status = AssetVersionStatus.SEALED;
-    await assetVersion.save();
-  }
+  assetVersion.status = AssetVersionStatus.SEALED;
+  await assetVersion.save();
 
   session.status = UploadSessionStatus.COMPLETED;
   await session.save();
@@ -189,11 +287,36 @@ export async function resumeUploadSession(sessionId: string) {
   
   const uploadedPartNumbers = session.partsUploaded.map(p => p.partNumber);
   const presignedUrls: Record<number, string> = {};
+  if (session.providerUploadId === 'direct-put' || session.totalParts === 1) {
+    // Single-put complete: handled by the upload to presigned URL. 
+    // We just mark it here.
+    session.status = UploadSessionStatus.COMPLETED;
+    await session.save();
 
-  // Stub generating presigned URLs for missing parts
+    const version = await AssetVersion.findById(session.assetVersionId);
+    if (version) {
+      version.status = AssetVersionStatus.READY;
+      await version.save();
+    }
+    return { success: true };
+  }
+
+  const s3Disabled = isS3Disabled();
+  const baseUrl = process.env.VITE_API_URL || `http://localhost:${process.env.PORT || 5000}`;
+
   for (let i = 1; i <= totalParts; i++) {
     if (!uploadedPartNumbers.includes(i)) {
-      presignedUrls[i] = `https://${S3_BUCKET}.s3.amazonaws.com/${storageKey}?partNumber=${i}&uploadId=${providerUploadId}`;
+      if (!s3Disabled) {
+        const partCmd = new UploadPartCommand({
+          Bucket: S3_BUCKET,
+          Key: storageKey,
+          PartNumber: i,
+          UploadId: providerUploadId,
+        });
+        presignedUrls[i] = await getPresignedUrl(s3Client, partCmd, { expiresIn: 3600 });
+      } else {
+        presignedUrls[i] = `${baseUrl}/api/v1/uploads/local-part/${session._id}/${i}?u=${providerUploadId}`;
+      }
     }
   }
 
@@ -249,4 +372,94 @@ export async function createNewVersion(assetId: string, userId: string, fileName
     assetVersionId: assetVersion._id,
     versionNumber: newVersionNumber,
   };
+}
+
+/**
+ * Validate a local part upload before saving.
+ */
+export async function validateLocalPartUpload(sessionId: string, providerUploadId: string) {
+  const session = await UploadSession.findById(sessionId);
+  if (!session) throw new Error('Upload session not found');
+  if (session.providerUploadId !== providerUploadId) {
+    throw new Error('Invalid upload ID for this session');
+  }
+  if (session.status !== UploadSessionStatus.ACTIVE) {
+    throw new Error('Upload session is no longer active');
+  }
+  return session;
+}
+
+/**
+ * Save a chunk of data locally for a session.
+ */
+export async function saveLocalPart(sessionId: string, partNumber: number, data: Buffer) {
+  const session = await UploadSession.findById(sessionId);
+  if (!session) throw new Error('Session not found');
+
+  const sessionChunksDir = path.join(CHUNKS_DIR, sessionId);
+  await fs.mkdir(sessionChunksDir, { recursive: true });
+
+  const partPath = path.join(sessionChunksDir, partNumber.toString());
+  await fs.writeFile(partPath, data);
+
+  logger.debug('upload.local_part_saved', { sessionId, partNumber, size: data.length });
+
+  return { success: true };
+}
+
+/**
+ * Generates a temporary URL for viewing/downloading an asset.
+ */
+export async function getAssetDownloadUrl(assetId: string): Promise<string> {
+  const asset = await Asset.findById(assetId);
+  if (!asset) throw new Error('Asset not found');
+
+  const version = await AssetVersion.findById(asset.latestVersionId);
+  if (!version) throw new Error('Asset version not found');
+
+  if (isS3Disabled()) {
+    return `/api/v1/uploads/view/${assetId}`;
+  }
+
+  const s3Client = (await import('../config/s3.ts')).default;
+  const command = new GetObjectCommand({
+    Bucket: process.env.S3_BUCKET,
+    Key: version.storageKey,
+  });
+
+  return getPresignedUrl(s3Client, command, { expiresIn: 3600 });
+}
+
+/**
+ * Deletes an asset and its file from storage.
+ */
+export async function deleteAsset(assetId: string): Promise<void> {
+  const asset = await Asset.findById(assetId);
+  if (!asset) return;
+
+  const version = await AssetVersion.findById(asset.latestVersionId);
+  if (version) {
+    if (isS3Disabled()) {
+      const filePath = path.join(process.cwd(), version.storageKey);
+      try {
+        await fs.unlink(filePath);
+      } catch (err) {
+        logger.warn('upload.local_delete_failed', { assetId, path: filePath, error: serializeError(err) });
+      }
+    } else {
+      const s3Client = (await import('../config/s3.ts')).default;
+      try {
+        await s3Client.send(new DeleteObjectCommand({
+          Bucket: process.env.S3_BUCKET,
+          Key: version.storageKey,
+        }));
+      } catch (err) {
+        logger.warn('upload.s3_delete_failed', { assetId, key: version.storageKey, error: serializeError(err) });
+      }
+    }
+    await AssetVersion.deleteOne({ _id: version._id });
+  }
+
+  await Asset.deleteOne({ _id: assetId });
+  logger.info('upload.asset_deleted', { assetId, originalName: asset.originalName });
 }

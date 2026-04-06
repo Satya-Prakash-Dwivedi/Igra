@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import asyncHandler from 'express-async-handler';
 import User from '../models/User.ts';
 import type {IUser} from '../models/User.ts';
+import * as creditService from '../services/creditService.ts';
 import dotenv from 'dotenv';
 
 dotenv.config({ quiet: true })
@@ -41,6 +42,9 @@ export const authenticate = asyncHandler(async(req: AuthRequest, res: Response, 
         res.status(403)
         throw new Error('User account is deactivated');
       }
+
+      // Fetch latest credit balance from the new ledger system
+      user.credits = await creditService.getBalance(user.id);
 
       req.user = user;
       next();

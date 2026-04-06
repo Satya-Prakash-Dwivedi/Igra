@@ -26,6 +26,7 @@ export interface IUser extends Document {
     email: boolean;
     inApp: boolean;
   };
+  credits?: number;
   lastLoginAt?: Date;
   createdAt : Date;
   updatedAt : Date;
@@ -98,6 +99,10 @@ const userSchema = new Schema<IUser>(
     notificationPreferences: {
       email: { type: Boolean, default: true },
       inApp: { type: Boolean, default: true },
+    },
+    credits: {
+      type: Number,
+      default: 0,
     },
     lastLoginAt: {
       type: Date,

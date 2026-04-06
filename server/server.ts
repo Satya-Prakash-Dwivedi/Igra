@@ -7,6 +7,8 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import fs from 'fs';
+import path from 'path';
 
 import connectDB from './config/db.ts';
 import { errorHandler, notFound } from './middleware/errorHandler.ts';
@@ -80,13 +82,18 @@ app.use(requestLogger);
 
 // Webhooks need raw body — parse before JSON middleware
 app.use('/api/v1/webhooks', express.raw({ type: 'application/json' }));
+
+// 🔴 Local Upload Proxy: needs large raw body for multipart chunks
+app.use('/api/v1/uploads/local-part', express.raw({ type: '*/*', limit: '20mb' }));
+
 app.use(express.json({ limit: '10kb' }));
 
 // ─── 2. Rate Limiting ────────────────────────────────────────
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: process.env.NODE_ENV === 'development' ? 10000 : 100, // much higher limit for dev
   message: 'Too many requests from this IP, please try again after 15 minutes',
+  skip: (req) => process.env.NODE_ENV === 'development', // skip limiting entirely in dev
 });
 app.use('/api', limiter);
 
@@ -102,6 +109,9 @@ app.use('/api/v1/uploads',   uploadRoutes);
 app.use('/api/v1/admin',     adminRoutes);
 app.use('/api/v1/webhooks',  webhookRoutes);
 
+// Static Assets
+app.use('/uploads', express.static(path.resolve('uploads')));
+
 // ─── 4. Health Check ─────────────────────────────────────────
 app.get('/hello', (req: Request, res: Response) => {
   res.send('Hello from Igra Studios');
@@ -116,6 +126,15 @@ const PORT = process.env.PORT;
 
 const startServer = async () => {
   try {
+    // Ensure upload directories exist
+    const dirs = ['uploads', 'uploads/chunks'];
+    for (const dir of dirs) {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        logger.info('server.dir_created', { dir });
+      }
+    }
+
     await connectDB();
     httpServer.listen(PORT, () => {
       logger.info('server.started', {

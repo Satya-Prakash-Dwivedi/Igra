@@ -4,14 +4,14 @@
 
 import type {Request, Response} from 'express';
 import asyncHandler from 'express-async-handler';
-import * as userService from '../services/userService.ts';
-import * as authService from '../services/authService.ts';
-import * as creditService from '../services/creditService.ts';
-import User from '../models/User.ts';
+import * as userService from '../services/userService.js';
+import * as authService from '../services/authService.js';
+import * as creditService from '../services/creditService.js';
+import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import type { AuthRequest } from '../middleware/auth.ts';
-import { updateProfileSchema } from '../validators/userValidator.ts';
+import type { AuthRequest } from '../middleware/auth.js';
+import { updateProfileSchema } from '../validators/userValidator.js';
 
 dotenv.config({ quiet: true })
 

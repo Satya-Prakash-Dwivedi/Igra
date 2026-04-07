@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { OrderItemKind } from '../models/OrderItem.ts';
+import { OrderItemKind } from '../models/OrderItem.js';
 
 // ─── Per-Kind Parameter Validators ────────────────────────────
 

@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
-import CreditWallet from '../models/CreditWallet.ts';
-import CreditLedgerEntry, { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.ts';
-import { computeLedgerHash } from '../utils/hashChain.ts';
+import CreditWallet from '../models/CreditWallet.js';
+import CreditLedgerEntry, { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.js';
+import { computeLedgerHash } from '../utils/hashChain.js';
 
 interface AppendLedgerOpts {
   walletId: mongoose.Types.ObjectId | string;

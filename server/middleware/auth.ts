@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from 'jsonwebtoken';
 import asyncHandler from 'express-async-handler';
-import User from '../models/User.ts';
-import type {IUser} from '../models/User.ts';
-import * as creditService from '../services/creditService.ts';
+import User from '../models/User.js';
+import type {IUser} from '../models/User.js';
+import * as creditService from '../services/creditService.js';
 import dotenv from 'dotenv';
 
 dotenv.config({ quiet: true })

@@ -1,8 +1,8 @@
 import type { Response } from 'express';
-import type { AuthRequest } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
-import * as supportService from '../services/supportService.ts';
-import { createTicketSchema, createBugReportSchema } from '../validators/supportValidator.ts';
+import * as supportService from '../services/supportService.js';
+import { createTicketSchema, createBugReportSchema } from '../validators/supportValidator.js';
 
 // ─── POST /api/v1/support/tickets ─────────────────────────────
 export const createTicket = asyncHandler(async (req: AuthRequest, res: Response) => {

@@ -1,12 +1,12 @@
 import mongoose from 'mongoose';
-import Payment, { PaymentStatus } from '../models/Payment.ts';
-import Invoice from '../models/Invoice.ts';
-import { CREDIT_PACKS } from '../config/serviceCatalog.ts';
-import * as creditService from './creditService.ts';
-import { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.ts';
-import { generateInvoiceNumber } from '../utils/generateOrderNumber.ts';
+import Payment, { PaymentStatus } from '../models/Payment.js';
+import Invoice from '../models/Invoice.js';
+import { CREDIT_PACKS } from '../config/serviceCatalog.js';
+import * as creditService from './creditService.js';
+import { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.js';
+import { generateInvoiceNumber } from '../utils/generateOrderNumber.js';
 import paypal from '@paypal/checkout-server-sdk';
-import logger from '../utils/logger.ts';
+import logger from '../utils/logger.js';
 
 function getPayPalClient() {
   const clientId = process.env.PAYPAL_CLIENT_ID || '';

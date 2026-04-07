@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express'
-import logger, { serializeError } from '../utils/logger.ts'
+import logger, { serializeError } from '../utils/logger.js'
 
 // The main error handler middleware
 export const errorHandler = (

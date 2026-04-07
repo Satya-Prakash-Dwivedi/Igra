@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.ts';
-import { requireIdempotencyKey } from '../middleware/idempotency.ts';
-import * as orderCtrl from '../controllers/orderController.ts';
+import { authenticate, authorize } from '../middleware/auth.js';
+import { requireIdempotencyKey } from '../middleware/idempotency.js';
+import * as orderCtrl from '../controllers/orderController.js';
 
 const router = Router();
 

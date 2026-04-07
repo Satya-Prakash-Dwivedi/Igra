@@ -1,16 +1,16 @@
 import mongoose from 'mongoose';
-import Asset from '../models/Asset.ts';
-import AssetVersion, { AssetVersionStatus } from '../models/AssetVersion.ts';
-import UploadSession, { UploadSessionStatus } from '../models/UploadSession.ts';
+import Asset from '../models/Asset.js';
+import AssetVersion, { AssetVersionStatus } from '../models/AssetVersion.js';
+import UploadSession, { UploadSessionStatus } from '../models/UploadSession.js';
 import s3Client, { 
   S3_BUCKET, 
   CreateMultipartUploadCommand, 
   UploadPartCommand, 
   CompleteMultipartUploadCommand 
-} from '../config/s3.ts';
+} from '../config/s3.js';
 import { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl as getPresignedUrl } from '@aws-sdk/s3-request-presigner';
-import logger, { serializeError } from '../utils/logger.ts';
+import logger, { serializeError } from '../utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
@@ -421,7 +421,7 @@ export async function getAssetDownloadUrl(assetId: string): Promise<string> {
     return `/api/v1/uploads/view/${assetId}`;
   }
 
-  const s3Client = (await import('../config/s3.ts')).default;
+  const s3Client = (await import('../config/s3.js')).default;
   const command = new GetObjectCommand({
     Bucket: process.env.S3_BUCKET,
     Key: version.storageKey,
@@ -447,7 +447,7 @@ export async function deleteAsset(assetId: string): Promise<void> {
         logger.warn('upload.local_delete_failed', { assetId, path: filePath, error: serializeError(err) });
       }
     } else {
-      const s3Client = (await import('../config/s3.ts')).default;
+      const s3Client = (await import('../config/s3.js')).default;
       try {
         await s3Client.send(new DeleteObjectCommand({
           Bucket: process.env.S3_BUCKET,

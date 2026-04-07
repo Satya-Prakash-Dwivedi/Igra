@@ -1,5 +1,5 @@
-import { OrderItemKind, type IPricingSnapshot } from '../models/OrderItem.ts';
-import { SERVICE_CATALOG } from '../config/serviceCatalog.ts';
+import { OrderItemKind, type IPricingSnapshot } from '../models/OrderItem.js';
+import { SERVICE_CATALOG } from '../config/serviceCatalog.js';
 
 export function computePricingSnapshot(
   kind: OrderItemKind,

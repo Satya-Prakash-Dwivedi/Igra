@@ -1,18 +1,18 @@
 import type { Response } from 'express';
-import type { AuthRequest } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
-import * as orderService from '../services/orderService.ts';
-import * as supportService from '../services/supportService.ts';
-import * as userService from '../services/userService.ts';
-import { OrderItemStatus } from '../models/OrderItem.ts';
-import Order from '../models/Order.ts';
-import User from '../models/User.ts';
+import * as orderService from '../services/orderService.js';
+import * as supportService from '../services/supportService.js';
+import * as userService from '../services/userService.js';
+import { OrderItemStatus } from '../models/OrderItem.js';
+import Order from '../models/Order.js';
+import User from '../models/User.js';
 import {
     reviewOrderSchema,
     assignOrderSchema,
     transitionStatusSchema,
     updateSupportStatusSchema,
-} from '../validators/adminValidator.ts';
+} from '../validators/adminValidator.js';
 
 // ─── Dashboard Statistics (Gap 4: single $facet round-trip) ───
 export const getDashboardStats = asyncHandler(async (_req: AuthRequest, res: Response) => {

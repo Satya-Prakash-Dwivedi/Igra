@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.ts';
-import * as supportCtrl from '../controllers/supportController.ts';
+import { authenticate } from '../middleware/auth.js';
+import * as supportCtrl from '../controllers/supportController.js';
 
 const router = Router();
 

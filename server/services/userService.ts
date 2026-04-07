@@ -1,5 +1,5 @@
-import User from '../models/User.ts'
-import type {IUser} from '../models/User.ts'
+import User from '../models/User.js'
+import type {IUser} from '../models/User.js'
 
 export const createUser = async(userData : Partial<IUser>) => {
     // Check if user already exists

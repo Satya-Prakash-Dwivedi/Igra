@@ -1,8 +1,8 @@
 import type { Response } from 'express';
-import type { AuthRequest } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
-import * as channelService from '../services/channelService.ts';
-import { createChannelSchema, updateChannelSchema } from '../validators/channelValidator.ts';
+import * as channelService from '../services/channelService.js';
+import { createChannelSchema, updateChannelSchema } from '../validators/channelValidator.js';
 
 // ─── List Channels ────────────────────────────────────────────
 export const listChannels = asyncHandler(async (req: AuthRequest, res: Response) => {

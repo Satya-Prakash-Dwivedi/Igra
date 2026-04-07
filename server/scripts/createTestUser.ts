@@ -4,9 +4,9 @@ import path from 'path';
 import User from '../models/User.js';
 import * as userService from '../services/userService.js';
 import * as creditService from '../services/creditService.js';
-import { LedgerReason } from '../models/CreditLedgerEntry.js';
 import logger from '../utils/logger.js';
 
+// Fallback if .env is not present (standard in Docker containers)
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 async function createTestUser() {
@@ -18,9 +18,9 @@ async function createTestUser() {
   console.log(`🚀 Creating test account: ${emailArg} with ${creditsArg} credits...`);
 
   try {
-    // 1. Connect to MongoDB
+    // 1. Connect to MongoDB (check process.env first)
     const mongoUri = process.env.MONGO_URI;
-    if (!mongoUri) throw new Error('MONGO_URI not found in environment');
+    if (!mongoUri) throw new Error('MONGO_URI not found in environment. Check your Docker environment variables.');
     
     await mongoose.connect(mongoUri);
     console.log('✅ Connected to MongoDB.');
@@ -35,19 +35,20 @@ async function createTestUser() {
         password: passwordArg,
       });
     } else {
-      console.log(`👤 User already exists: ${emailArg}`);
+      console.log(`👤 User already exists: ${emailArg}. Proceeding to grant credits.`);
     }
 
-    // 3. Grant Credits
+    // 3. Grant Credits via Wallet
     const wallet = await creditService.getOrCreateWallet(user._id);
     const idempotencyKey = `manual_grant_${Date.now()}`;
 
+    // Note: We use any here because LedgerReason is an enum which might not have ADMIN_ADJUSTMENT yet
     await creditService.appendLedgerEntry({
       walletId: wallet._id,
       delta: creditsArg,
-      reason: 'ADMIN_ADJUSTMENT' as any, // fallback if LedgerReason doesn't have this
-      refType: 'ORDER' as any, // dummy ref
-      refId: user._id,
+      reason: 'ADMIN_ADJUSTMENT' as any, 
+      refType: 'ORDER' as any, 
+      refId: user._id, 
       idempotencyKey,
     });
 
@@ -55,7 +56,7 @@ async function createTestUser() {
     console.log(`💰 Success! New balance for ${emailArg}: ${newBalance} credits.`);
 
   } catch (error: any) {
-    console.error('❌ Error creating test account:', error.message);
+    console.error('❌ Error:', error.message);
     process.exit(1);
   } finally {
     await mongoose.disconnect();

@@ -4,6 +4,7 @@ import path from 'path';
 import User from '../models/User.js';
 import * as userService from '../services/userService.js';
 import * as creditService from '../services/creditService.js';
+import { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.js';
 import logger from '../utils/logger.js';
 
 // Fallback if .env is not present (standard in Docker containers)
@@ -42,13 +43,12 @@ async function createTestUser() {
     const wallet = await creditService.getOrCreateWallet(user._id);
     const idempotencyKey = `manual_grant_${Date.now()}`;
 
-    // Note: We use any here because LedgerReason is an enum which might not have ADMIN_ADJUSTMENT yet
     await creditService.appendLedgerEntry({
       walletId: wallet._id,
       delta: creditsArg,
-      reason: 'ADMIN_ADJUSTMENT' as any, 
-      refType: 'ORDER' as any, 
-      refId: user._id, 
+      reason: LedgerReason.ADJUSTMENT,
+      refType: LedgerRefType.ADMIN,
+      refId: user._id,
       idempotencyKey,
     });
 

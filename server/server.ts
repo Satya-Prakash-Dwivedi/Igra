@@ -31,9 +31,11 @@ const app = express();
 const httpServer = createServer(app);
 
 // ─── Socket.IO for Real-Time Chat ─────────────────────────────
+const origins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(o => o.trim()) : ['http://localhost:5173'];
+
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: origins,
     credentials: true,
   },
 });
@@ -70,12 +72,32 @@ io.on('connection', (socket) => {
 app.set('io', io);
 
 // ─── 1. Security Middlewares ──────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (origins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key'],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Idempotency-Key', 
+    'X-Requested-With', 
+    'Accept', 
+    'Origin'
+  ],
+  exposedHeaders: ['set-cookie']
 }));
 app.use(cookieParser());
 app.use(requestLogger);

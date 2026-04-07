@@ -1,6 +1,6 @@
 import dotenv from 'dotenv'
 import mongoose from 'mongoose'
-import logger, { serializeError } from '../utils/logger.ts'
+import logger, { serializeError } from '../utils/logger.js'
 
 dotenv.config({ quiet: true })
 

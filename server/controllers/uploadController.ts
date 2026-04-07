@@ -1,10 +1,10 @@
 import type { Response } from 'express';
-import type { AuthRequest } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
-import * as uploadService from '../services/uploadService.ts';
-import * as orderService from '../services/orderService.ts';
-import Asset from '../models/Asset.ts';
-import AssetVersion from '../models/AssetVersion.ts';
+import * as uploadService from '../services/uploadService.js';
+import * as orderService from '../services/orderService.js';
+import Asset from '../models/Asset.js';
+import AssetVersion from '../models/AssetVersion.js';
 import path from 'path';
 import fs from 'fs';
 

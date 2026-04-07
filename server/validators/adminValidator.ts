@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { OrderItemStatus } from '../models/OrderItem.ts';
+import { OrderItemStatus } from '../models/OrderItem.js';
 
 // ─── Review Order (Gap 2) ─────────────────────────────────────
 export const reviewOrderSchema = z.object({

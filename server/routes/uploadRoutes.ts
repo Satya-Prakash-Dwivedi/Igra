@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.ts';
-import * as uploadCtrl from '../controllers/uploadController.ts';
+import { authenticate } from '../middleware/auth.js';
+import * as uploadCtrl from '../controllers/uploadController.js';
 
 const router = Router();
 

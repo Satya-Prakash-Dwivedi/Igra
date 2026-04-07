@@ -10,20 +10,20 @@ import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import path from 'path';
 
-import connectDB from './config/db.ts';
-import { errorHandler, notFound } from './middleware/errorHandler.ts';
-import { requestLogger } from './middleware/requestLogger.ts';
-import authRoutes from './routes/authRoutes.ts';
-import orderRoutes from './routes/orderRoutes.ts';
-import channelRoutes from './routes/channelRoutes.ts';
-import supportRoutes from './routes/supportRoutes.ts';
-import creditRoutes from './routes/creditRoutes.ts';
-import billingRoutes from './routes/billingRoutes.ts';
-import uploadRoutes from './routes/uploadRoutes.ts';
-import messageRoutes from './routes/messageRoutes.ts';
-import adminRoutes from './routes/adminRoutes.ts';
-import webhookRoutes from './routes/webhookRoutes.ts';
-import logger, { serializeError } from './utils/logger.ts';
+import connectDB from './config/db.js';
+import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { requestLogger } from './middleware/requestLogger.js';
+import authRoutes from './routes/authRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+import channelRoutes from './routes/channelRoutes.js';
+import supportRoutes from './routes/supportRoutes.js';
+import creditRoutes from './routes/creditRoutes.js';
+import billingRoutes from './routes/billingRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
+import messageRoutes from './routes/messageRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import webhookRoutes from './routes/webhookRoutes.js';
+import logger, { serializeError } from './utils/logger.js';
 
 dotenv.config({ quiet: true });
 

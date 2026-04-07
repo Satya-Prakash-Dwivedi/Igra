@@ -1,15 +1,15 @@
 import mongoose from 'mongoose';
-import Order, { OrderStatus, ORDER_TRANSITIONS } from '../models/Order.ts';
-import OrderItem, { OrderItemKind, OrderItemStatus, ITEM_TRANSITIONS } from '../models/OrderItem.ts';
-import AssetLink, { AssetRole } from '../models/AssetLink.ts';
-import { SERVICE_CATALOG } from '../config/serviceCatalog.ts';
-import { validateOrderItemParams } from '../validators/orderItemParams.ts';
-import { computePricingSnapshot } from './pricingService.ts';
-import * as creditService from './creditService.ts';
-import * as auditService from './auditService.ts';
-import { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.ts';
-import { generateOrderNumber } from '../utils/generateOrderNumber.ts';
-import * as uploadService from './uploadService.ts';
+import Order, { OrderStatus, ORDER_TRANSITIONS } from '../models/Order.js';
+import OrderItem, { OrderItemKind, OrderItemStatus, ITEM_TRANSITIONS } from '../models/OrderItem.js';
+import AssetLink, { AssetRole } from '../models/AssetLink.js';
+import { SERVICE_CATALOG } from '../config/serviceCatalog.js';
+import { validateOrderItemParams } from '../validators/orderItemParams.js';
+import { computePricingSnapshot } from './pricingService.js';
+import * as creditService from './creditService.js';
+import * as auditService from './auditService.js';
+import { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.js';
+import { generateOrderNumber } from '../utils/generateOrderNumber.js';
+import * as uploadService from './uploadService.js';
 
 // ─── Create Draft Order ───────────────────────────────────────
 export async function createOrder(userId: string, idempotencyKey: string, title?: string) {

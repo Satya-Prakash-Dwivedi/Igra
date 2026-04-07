@@ -1,5 +1,5 @@
-import Channel from '../models/Channel.ts';
-import type { CreateChannelInput, UpdateChannelInput } from '../validators/channelValidator.ts';
+import Channel from '../models/Channel.js';
+import type { CreateChannelInput, UpdateChannelInput } from '../validators/channelValidator.js';
 
 /**
  * List all channels belonging to a specific user.

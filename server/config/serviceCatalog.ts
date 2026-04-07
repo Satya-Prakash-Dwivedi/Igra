@@ -1,4 +1,4 @@
-import { OrderItemKind } from '../models/OrderItem.ts';
+import { OrderItemKind } from '../models/OrderItem.js';
 
 // ─── Service Definition ───────────────────────────────────────
 export interface ServiceDef {

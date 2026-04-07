@@ -1,8 +1,8 @@
 import type { Request, Response } from 'express';
-import type { AuthRequest } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
-import * as billingService from '../services/billingService.ts';
-import { CREDIT_PACKS } from '../config/serviceCatalog.ts';
+import * as billingService from '../services/billingService.js';
+import { CREDIT_PACKS } from '../config/serviceCatalog.js';
 
 // ─── Get Credit Packs ─────────────────────────────────────────
 export const getCreditPacks = asyncHandler(async (req: AuthRequest, res: Response) => {

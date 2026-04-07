@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import crypto from 'crypto'
-import logger from '../utils/logger.ts'
+import logger from '../utils/logger.js'
 
 // ─────────────────────────────────────────────────────────────
 // 🔴 RED: Replace PAYPAL_WEBHOOK_ID in .env with real value

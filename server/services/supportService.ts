@@ -1,5 +1,5 @@
-import { Ticket, BugReport, SupportRequest, type SupportStatus } from '../models/SupportRequest.ts';
-import type { CreateTicketInput, CreateBugReportInput } from '../validators/supportValidator.ts';
+import { Ticket, BugReport, SupportRequest, type SupportStatus } from '../models/SupportRequest.js';
+import type { CreateTicketInput, CreateBugReportInput } from '../validators/supportValidator.js';
 
 /**
  * Create a new support ticket for a user.

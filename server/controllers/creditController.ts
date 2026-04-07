@@ -1,7 +1,7 @@
 import type { Response } from 'express';
-import type { AuthRequest } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
-import * as creditService from '../services/creditService.ts';
+import * as creditService from '../services/creditService.js';
 
 // ─── Get Wallet ───────────────────────────────────────────────
 export const getWallet = asyncHandler(async (req: AuthRequest, res: Response) => {

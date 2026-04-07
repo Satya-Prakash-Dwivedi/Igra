@@ -1,7 +1,7 @@
 import type { Response } from 'express';
-import type { AuthRequest } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
-import Message from '../models/Message.ts';
+import Message from '../models/Message.js';
 
 // ─── Get Messages for Order ───────────────────────────────────
 export const getMessages = asyncHandler(async (req: AuthRequest, res: Response) => {

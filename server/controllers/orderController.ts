@@ -1,8 +1,8 @@
 import type { Response } from 'express';
-import type { AuthRequest } from '../middleware/auth.ts';
+import type { AuthRequest } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
-import * as orderService from '../services/orderService.ts';
-import { OrderItemKind } from '../models/OrderItem.ts';
+import * as orderService from '../services/orderService.js';
+import { OrderItemKind } from '../models/OrderItem.js';
 
 // ─── Create Draft Order ───────────────────────────────────────
 export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) => {

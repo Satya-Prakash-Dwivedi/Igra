@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { NextFunction, Request, Response } from 'express'
-import logger from '../utils/logger.ts'
+import logger from '../utils/logger.js'
 
 export function requestLogger(req: Request, res: Response, next: NextFunction) {
   const requestId = req.headers['x-request-id']?.toString() || randomUUID()

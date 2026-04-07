@@ -1,5 +1,5 @@
-import OrderEvent from '../models/OrderEvent.ts';
-import ItemEvent from '../models/ItemEvent.ts';
+import OrderEvent from '../models/OrderEvent.js';
+import ItemEvent from '../models/ItemEvent.js';
 
 /**
  * Append an order-level audit event.

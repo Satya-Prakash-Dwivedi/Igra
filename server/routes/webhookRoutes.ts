@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { verifyPaypalWebhook } from '../middleware/verifyPaypalWebhook.ts';
-import * as billingCtrl from '../controllers/billingController.ts';
+import { verifyPaypalWebhook } from '../middleware/verifyPaypalWebhook.js';
+import * as billingCtrl from '../controllers/billingController.js';
 
 const router = Router();
 

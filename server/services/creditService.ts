@@ -47,9 +47,9 @@ export async function appendLedgerEntry(opts: AppendLedgerOpts) {
 
   // 5. Atomic: create entry + update wallet in a transaction
   const session = await mongoose.startSession();
-  const isDev = process.env.NODE_ENV === 'development';
+  const useTransactions = process.env.NODE_ENV !== 'development' && process.env.MONGO_DISABLE_TRANSACTIONS !== 'true';
   
-  if (!isDev) {
+  if (useTransactions) {
     session.startTransaction();
   }
 
@@ -75,12 +75,12 @@ export async function appendLedgerEntry(opts: AppendLedgerOpts) {
       { session }
     );
 
-    if (!isDev) {
+    if (useTransactions) {
       await session.commitTransaction();
     }
     return entry;
   } catch (err) {
-    if (!isDev) {
+    if (useTransactions) {
       await session.abortTransaction();
     }
     throw err;

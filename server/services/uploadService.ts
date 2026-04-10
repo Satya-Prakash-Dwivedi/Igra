@@ -82,6 +82,7 @@ export async function startUpload(
           Bucket: S3_BUCKET,
           Key: storageKey,
           ContentType: mimeType,
+          ChecksumAlgorithm: undefined,
         });
         // We use signers to generate a URL, but we must ensure we don't sign headers
         // that the browser won't automatically send.
@@ -105,6 +106,7 @@ export async function startUpload(
             Key: storageKey,
             PartNumber: i,
             UploadId: providerUploadId,
+            ChecksumAlgorithm: undefined,
           });
           const url = await getPresignedUrl(s3Client, partCmd, { expiresIn: 3600 });
           presignedUrls.push(url);
@@ -317,6 +319,7 @@ export async function resumeUploadSession(sessionId: string) {
           Key: storageKey,
           PartNumber: i,
           UploadId: providerUploadId,
+          ChecksumAlgorithm: undefined,
         });
         presignedUrls[i] = await getPresignedUrl(s3Client, partCmd, { expiresIn: 3600 });
       } else {

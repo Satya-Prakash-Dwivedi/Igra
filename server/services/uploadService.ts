@@ -83,6 +83,8 @@ export async function startUpload(
           Key: storageKey,
           ContentType: mimeType,
         });
+        // We use signers to generate a URL, but we must ensure we don't sign headers
+        // that the browser won't automatically send.
         const url = await getPresignedUrl(s3Client, cmd, { expiresIn: 3600 });
         presignedUrls.push(url);
         providerUploadId = 'direct-put'; // Skip Multipart ID
@@ -198,24 +200,27 @@ export async function finalizeUpload(sessionId: string) {
 
   if (!isS3Disabled()) {
     // ─── 1. S3 Finalization ───────────────────────────────────
-    try {
-      const cmd = new CompleteMultipartUploadCommand({
-        Bucket: S3_BUCKET,
-        Key: assetVersion.storageKey,
-        UploadId: session.providerUploadId,
-        MultipartUpload: {
-          Parts: session.partsUploaded
-            .sort((a, b) => a.partNumber - b.partNumber)
-            .map(p => ({
-              PartNumber: p.partNumber,
-              ETag: p.etag,
-            })),
-        },
-      });
-      await s3Client.send(cmd);
-    } catch (err) {
-      logger.error('upload.s3_finalize_failed', { error: serializeError(err) });
-      throw new Error('S3 completion failed');
+    // ONLY call CompleteMultipartUpload if we actually had a multipart session
+    if (session.providerUploadId !== 'direct-put') {
+      try {
+        const cmd = new CompleteMultipartUploadCommand({
+          Bucket: S3_BUCKET,
+          Key: assetVersion.storageKey,
+          UploadId: session.providerUploadId,
+          MultipartUpload: {
+            Parts: session.partsUploaded
+              .sort((a, b) => a.partNumber - b.partNumber)
+              .map(p => ({
+                PartNumber: p.partNumber,
+                ETag: p.etag,
+              })),
+          },
+        });
+        await s3Client.send(cmd);
+      } catch (err) {
+        logger.error('upload.s3_finalize_failed', { error: serializeError(err) });
+        throw new Error('S3 completion failed');
+      }
     }
   } else {
     // ─── 2. Local Finalization (Zip/Merge Chunks) ──────────────

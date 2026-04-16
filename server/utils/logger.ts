@@ -15,10 +15,34 @@ const devConsoleFormat = winston.format.combine(
   winston.format.timestamp({ format: 'HH:mm:ss' }),
   winston.format.errors({ stack: true }),
   winston.format.colorize({ all: true }),
-  winston.format.printf(({ timestamp, level, message, stack, ...metadata }) => {
+  winston.format.printf(({ timestamp, level, message, stack, service, environment, ...metadata }) => {
+    // Make a clean metadata object dropping Winston symbols
+    const cleanMeta = Object.keys(metadata).reduce((acc, key) => {
+      acc[key] = metadata[key]
+      return acc
+    }, {} as Record<string, unknown>)
+
+    // Request logs formatting
+    if (typeof message === 'string' && (message.includes('request.completed') || message.includes('request.failed'))) {
+      const method = String(cleanMeta.method || '').padEnd(6)
+      const statusCode = cleanMeta.statusCode || '---'
+      const path = cleanMeta.path || ''
+      const durationMs = cleanMeta.durationMs ? `${cleanMeta.durationMs}ms` : ''
+
+      let errorTrace = ''
+      if (cleanMeta.error && typeof cleanMeta.error === 'object') {
+        const errStr = (cleanMeta.error as any).stack || inspect(cleanMeta.error, { colors: true })
+        errorTrace = `\n${errStr}`
+        delete cleanMeta.error
+      }
+
+      return `${timestamp} ${level} [HTTP] ${statusCode} | ${method} ${path} \t ${durationMs}${errorTrace}`
+    }
+
+    // Default object formatter
     const metadataOutput =
-      Object.keys(metadata).length > 0
-        ? `\n${inspect(metadata, {
+      Object.keys(cleanMeta).length > 0
+        ? `\n${inspect(cleanMeta, {
             colors: true,
             compact: false,
             depth: 6,

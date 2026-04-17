@@ -144,7 +144,7 @@ export const listUsers = asyncHandler(async (req: AuthRequest, res: Response) =>
 
 // ─── Get User Detail ────────────────────────────────────────────
 export const getUserDetail = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.params.id;
+    const userId = req.params.id as string;
     const detail = await userService.getUserDetail(userId);
     res.json({ success: true, data: detail });
 });

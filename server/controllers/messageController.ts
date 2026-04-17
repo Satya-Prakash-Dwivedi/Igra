@@ -143,7 +143,7 @@ export const getDirectMessagesForUser = asyncHandler(async (req: AuthRequest, re
 
 // Admin: Reply to user's DM
 export const replyDirectMessage = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const targetUserId = req.params.userId;
+  const targetUserId = req.params.userId as string;
   const adminId = req.user!._id;
   const adminRole = req.user!.role as 'admin' | 'staff';
   const { content, attachmentAssetIds } = req.body;

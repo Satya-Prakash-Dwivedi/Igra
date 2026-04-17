@@ -132,3 +132,33 @@ export const listStaff = asyncHandler(async (req: AuthRequest, res: Response) =>
     const staff = await userService.listStaff();
     res.json({ success: true, data: { staff } });
 });
+
+// ─── List Users ───────────────────────────────────────────────
+export const listUsers = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page  = Number(req.query.page  || '1');
+    const limit = Math.min(Number(req.query.limit || '20'), 100);
+    const search = req.query.search as string || '';
+    const result = await userService.listUsers(page, limit, search, req.user!._id.toString());
+    res.json({ success: true, data: result });
+});
+
+// ─── Get User Detail ────────────────────────────────────────────
+export const getUserDetail = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.params.id;
+    const detail = await userService.getUserDetail(userId);
+    res.json({ success: true, data: detail });
+});
+
+// ─── Assign Staff ─────────────────────────────────────────────
+export const assignStaff = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.params.id as string;
+    const user = await userService.assignStaff(userId);
+    res.json({ success: true, data: { user } });
+});
+
+// ─── Remove Staff ─────────────────────────────────────────────
+export const removeStaff = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.params.id as string;
+    const user = await userService.removeStaff(userId);
+    res.json({ success: true, data: { user } });
+});

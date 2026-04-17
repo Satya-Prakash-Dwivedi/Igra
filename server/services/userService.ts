@@ -1,5 +1,7 @@
 import User from '../models/User.js'
 import type {IUser} from '../models/User.js'
+import Order from '../models/Order.js'
+import { SupportRequest } from '../models/SupportRequest.js'
 
 export const createUser = async(userData : Partial<IUser>) => {
     // Check if user already exists
@@ -54,4 +56,95 @@ export const listStaff = async () => {
         .select('name email role avatar')
         .sort({ name: 1 })
         .lean();
+};
+
+/**
+ * List paginated users with their total orders
+ */
+export async function listUsers(page: number, limit: number, search: string, excludeUserId?: string) {
+    const query: any = { role: 'user' };
+    
+    if (excludeUserId) {
+        query._id = { $ne: excludeUserId };
+    }
+
+    if (search) {
+        query.$or = [
+            { name: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } }
+        ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [users, totalCount] = await Promise.all([
+        User.find(query)
+            .select('-password')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+        User.countDocuments(query)
+    ]);
+
+    // Manually add totalOrders for now to verify basic list works
+    const usersWithOrders = await Promise.all(users.map(async (user: any) => {
+        const orderCount = await Order.countDocuments({ userId: user._id });
+        return { ...user, totalOrders: orderCount };
+    }));
+
+    return {
+        users: usersWithOrders,
+        total: totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalCount / limit)
+    };
+}
+
+export async function getUserDetail(userId: string) {
+    const user = await User.findById(userId).select('-password').lean();
+    if (!user) throw new Error('User not found');
+
+    const [orders, tickets, bugs] = await Promise.all([
+        Order.find({ userId }).sort({ createdAt: -1 }).lean(),
+        SupportRequest.find({ userId }).sort({ createdAt: -1 }).lean(),
+        SupportRequest.find({ userId, __t: 'BugReport' }).sort({ createdAt: -1 }).lean()
+    ]);
+
+    return { user, orders, tickets, bugs };
+};
+
+/**
+ * Assign staff role to a user
+ */
+export const assignStaff = async (userId: string) => {
+    const user = await User.findById(userId);
+    if (!user) {
+        throw new Error('User not found');
+    }
+    
+    if (user.role === 'admin') {
+        throw new Error('Cannot change an admin\'s role');
+    }
+    
+    user.role = 'staff';
+    return await user.save();
+};
+
+/**
+ * Remove staff role from a user
+ */
+export const removeStaff = async (userId: string) => {
+    const user = await User.findById(userId);
+    if (!user) {
+        throw new Error('User not found');
+    }
+    
+    if (user.role === 'admin') {
+        throw new Error('Cannot change an admin\'s role');
+    }
+    
+    user.role = 'user';
+    return await user.save();
 };

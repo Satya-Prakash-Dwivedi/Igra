@@ -21,6 +21,7 @@ import creditRoutes from './routes/creditRoutes.js';
 import billingRoutes from './routes/billingRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
+import directMessageRoutes from './routes/directMessageRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import logger, { serializeError } from './utils/logger.js';
@@ -58,6 +59,22 @@ io.on('connection', (socket) => {
     logger.info('socket.left_order', {
       socketId: socket.id,
       orderId,
+    });
+  });
+
+  socket.on('join-dm', (userId: string) => {
+    socket.join(`dm:${userId}`);
+    logger.info('socket.joined_dm', {
+      socketId: socket.id,
+      userId,
+    });
+  });
+
+  socket.on('leave-dm', (userId: string) => {
+    socket.leave(`dm:${userId}`);
+    logger.info('socket.left_dm', {
+      socketId: socket.id,
+      userId,
     });
   });
 
@@ -120,16 +137,17 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 // ─── 3. API Routes ───────────────────────────────────────────
-app.use('/api/v1/auth',      authRoutes);
-app.use('/api/v1/orders',    orderRoutes);
-app.use('/api/v1/orders',    messageRoutes);   // nested: /orders/:id/messages
-app.use('/api/v1/channels',  channelRoutes);
-app.use('/api/v1/support',   supportRoutes);
-app.use('/api/v1/credits',   creditRoutes);
-app.use('/api/v1/billing',   billingRoutes);
-app.use('/api/v1/uploads',   uploadRoutes);
-app.use('/api/v1/admin',     adminRoutes);
-app.use('/api/v1/webhooks',  webhookRoutes);
+app.use('/api/v1/auth',            authRoutes);
+app.use('/api/v1/orders',          orderRoutes);
+app.use('/api/v1/orders',          messageRoutes);   // nested: /orders/:id/messages
+app.use('/api/v1/direct-messages', directMessageRoutes);
+app.use('/api/v1/channels',        channelRoutes);
+app.use('/api/v1/support',         supportRoutes);
+app.use('/api/v1/credits',         creditRoutes);
+app.use('/api/v1/billing',         billingRoutes);
+app.use('/api/v1/uploads',         uploadRoutes);
+app.use('/api/v1/admin',           adminRoutes);
+app.use('/api/v1/webhooks',        webhookRoutes);
 
 // Static Assets
 app.use('/uploads', express.static(path.resolve('uploads')));

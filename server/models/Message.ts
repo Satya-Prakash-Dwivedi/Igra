@@ -1,7 +1,9 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IMessage extends Document {
-  orderId: Types.ObjectId;
+  orderId?: Types.ObjectId;
+  userId?: Types.ObjectId;
+  isDirectMessage?: boolean;
   senderId: Types.ObjectId;
   senderRole: 'client' | 'admin' | 'staff';
   content: string;
@@ -17,7 +19,15 @@ const messageSchema = new Schema<IMessage>(
     orderId: {
       type: Schema.Types.ObjectId,
       ref: 'Order',
-      required: true,
+      required: false,
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    isDirectMessage: {
+      type: Boolean,
+      default: false,
     },
     senderId: {
       type: Schema.Types.ObjectId,

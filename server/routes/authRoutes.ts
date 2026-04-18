@@ -1,6 +1,6 @@
 import { Router } from "express";
-import * as authController from "../controllers/authController.ts";
-import { authenticate } from "../middleware/auth.ts";
+import * as authController from "../controllers/authController.js";
+import { authenticate } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -10,5 +10,6 @@ router.post('/login', authController.login);
 router.get('/profile', authenticate, authController.getProfile);
 router.get('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
+router.patch('/profile', authenticate, authController.updateProfile);
 
 export default router;

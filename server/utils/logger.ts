@@ -1,50 +1,102 @@
-import winston from "winston";
+import { mkdirSync } from 'node:fs'
+import path from 'node:path'
+import { inspect } from 'node:util'
+import winston from 'winston'
 
-const levels = {
-    error: 0,
-    warn : 1, 
-    info : 2,
-    http : 3,
-    debug : 4,
-};
+export type LogMetadata = Record<string, unknown>
 
-const level = () => {
-    const env = process.env.NODE_ENV || 'development';
-    return env === 'development' ? 'debug' : 'warn';
-}
+const logDirectory = path.resolve(process.cwd(), 'logs')
+const environment = process.env.NODE_ENV ?? 'development'
+const isDevelopment = environment === 'development'
 
-const colors = {
-    error : 'red',
-    warn : 'yellow',
-    infor : 'green',
-    http : 'magenta',
-    debug : 'white',
-}
+mkdirSync(logDirectory, { recursive: true })
 
-winston.addColors(colors);
+const devConsoleFormat = winston.format.combine(
+  winston.format.timestamp({ format: 'HH:mm:ss' }),
+  winston.format.errors({ stack: true }),
+  winston.format.colorize({ all: true }),
+  winston.format.printf(({ timestamp, level, message, stack, service, environment, ...metadata }) => {
+    // Make a clean metadata object dropping Winston symbols
+    const cleanMeta = Object.keys(metadata).reduce((acc, key) => {
+      acc[key] = metadata[key]
+      return acc
+    }, {} as Record<string, unknown>)
 
-const format = winston.format.combine(
-    winston.format.timestamp({format : 'YYYY-MM-DD HH:mm:ss:ms'}),
-    winston.format.colorize({all : true}),
-    winston.format.printf(
-        (info) => `${info.timestamp} ${info.level} ${info.message}`,
-    ),
-);
+    // Request logs formatting
+    if (typeof message === 'string' && (message.includes('request.completed') || message.includes('request.failed'))) {
+      const method = String(cleanMeta.method || '').padEnd(6)
+      const statusCode = cleanMeta.statusCode || '---'
+      const path = cleanMeta.path || ''
+      const durationMs = cleanMeta.durationMs ? `${cleanMeta.durationMs}ms` : ''
 
-const transports = [
-    new winston.transports.Console(),
-    new winston.transports.File({
-        filename: 'logs/error.log',
-        level: 'error',
-    }),
-    new winston.transports.File({filename: 'logs/all.log'}),
-];
+      let errorTrace = ''
+      if (cleanMeta.error && typeof cleanMeta.error === 'object') {
+        const errStr = (cleanMeta.error as any).stack || inspect(cleanMeta.error, { colors: true })
+        errorTrace = `\n${errStr}`
+        delete cleanMeta.error
+      }
+
+      return `${timestamp} ${level} [HTTP] ${statusCode} | ${method} ${path} \t ${durationMs}${errorTrace}`
+    }
+
+    // Default object formatter
+    const metadataOutput =
+      Object.keys(cleanMeta).length > 0
+        ? `\n${inspect(cleanMeta, {
+            colors: true,
+            compact: false,
+            depth: 6,
+            breakLength: 100,
+          })}`
+        : ''
+
+    const stackOutput = stack ? `\n${stack}` : ''
+
+    return `${timestamp} ${level} ${message}${metadataOutput}${stackOutput}`
+  })
+)
+
+const jsonFormat = winston.format.combine(
+  winston.format.timestamp(),
+  winston.format.errors({ stack: true }),
+  winston.format.json()
+)
 
 const logger = winston.createLogger({
-    level: level(),
-    levels,
-    format,
-    transports,
-});
+  level: isDevelopment ? 'debug' : 'info',
+  defaultMeta: {
+    service: 'igra-api',
+    environment,
+  },
+  transports: [
+    new winston.transports.Console({
+      format: isDevelopment ? devConsoleFormat : jsonFormat,
+    }),
+    new winston.transports.File({
+      filename: path.join(logDirectory, 'error.log'),
+      level: 'error',
+      format: jsonFormat,
+    }),
+    new winston.transports.File({
+      filename: path.join(logDirectory, 'application.log'),
+      format: jsonFormat,
+    }),
+  ],
+})
 
-export default logger;
+export function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    }
+  }
+
+  return {
+    message: typeof error === 'string' ? error : 'Unknown error',
+    value: error,
+  }
+}
+
+export default logger

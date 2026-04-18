@@ -4,15 +4,16 @@
 
 import type {Request, Response} from 'express';
 import asyncHandler from 'express-async-handler';
-import * as userService from '../services/userService.ts';
-import * as authService from '../services/authService.ts';
-import User from '../models/User.ts';
+import * as userService from '../services/userService.js';
+import * as authService from '../services/authService.js';
+import * as creditService from '../services/creditService.js';
+import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import type { AuthRequest } from '../middleware/auth.ts';
-import { success } from 'zod';
+import type { AuthRequest } from '../middleware/auth.js';
+import { updateProfileSchema } from '../validators/userValidator.js';
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 export const register = asyncHandler(async(req: Request, res: Response) => {
     const { name , email, password } = req.body;
@@ -35,6 +36,7 @@ export const register = asyncHandler(async(req: Request, res: Response) => {
                 name : user.name,
                 email : user.email,
                 role : user.role,
+                credits: await creditService.getBalance(user.id),
             },
             access_token,
         },
@@ -76,6 +78,7 @@ export const login = asyncHandler(async(req: Request, res: Response) => {
                 name : user.name,
                 email : user.email,
                 role : user.role,
+                credits: await creditService.getBalance(user.id),
             },
             access_token,
         },
@@ -143,5 +146,34 @@ export const logout = asyncHandler(async(req: Request, res : Response) => {
     res.status(200).json({
         success: true,
         message : 'User logged out successfully',
+    });
+});
+
+export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
+    // 1. Validate request body
+    const validatedData = updateProfileSchema.parse(req.body);
+
+    // 2. Call service to update user
+    const updatedUser = await userService.updateUserProfile(req.user!.id, validatedData);
+
+    // 3. Send response
+    res.json({
+        success: true,
+        data: {
+            user: {
+                id: updatedUser.id,
+                name: updatedUser.name,
+                firstName: updatedUser.firstName,
+                lastName: updatedUser.lastName,
+                email: updatedUser.email,
+                avatar: updatedUser.avatar,
+                role: updatedUser.role,
+                company: updatedUser.company,
+                youtubeChannel: updatedUser.youtubeChannel,
+                notificationPreferences: updatedUser.notificationPreferences,
+                credits: await creditService.getBalance(updatedUser.id),
+            },
+        },
+        message: 'Profile updated successfully',
     });
 });

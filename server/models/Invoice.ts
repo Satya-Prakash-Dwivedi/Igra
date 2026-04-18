@@ -1,105 +1,82 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
-/**
- * 1. THE INTERFACE
- * Represents a formal billing document for a specific order.
- */
-export interface IInvoice extends Document {
-  invoiceNumber: string;
-  order_id: Types.ObjectId;
-  client_id: Types.ObjectId;
-  subtotal: number;
-  discount: number;
-  tax_rate: number;
-  tax_amount: number;
-  total_amount: number;
-  currency: string;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
-  due_date?: Date;
-  paid_at?: Date;
-  notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
+// ─── Invoice — one per credit purchase ────────────────────────
+export interface IInvoiceLineItem {
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  totalCents: number;
 }
 
-/**
- * 2. THE SCHEMA
- */
+export interface IInvoice extends Document {
+  userId: Types.ObjectId;
+  paymentId: Types.ObjectId;
+  invoiceNumber: string;
+  lineItems: IInvoiceLineItem[];
+  subtotalCents: number;
+  totalCents: number;
+  currency: string;
+  pdfStorageKey?: string;
+  createdAt: Date;
+}
+
+const invoiceLineItemSchema = new Schema(
+  {
+    description: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    unitPriceCents: { type: Number, required: true },
+    totalCents: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
 const invoiceSchema = new Schema<IInvoice>(
   {
-    invoiceNumber: { 
-      type: String, 
-      required: true, 
-      unique: true, 
-      trim: true,
-      index: true 
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
     },
-    // Enforces 1 invoice per order (Unique relationship)
-    order_id: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'Order', 
-      required: true, 
-      unique: true 
+    paymentId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Payment',
+      required: true,
+      unique: true,
     },
-    client_id: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'User', 
-      required: true 
-    },
-    subtotal: { 
-      type: Number, 
-      required: true, 
-      min: 0 
-    },
-    discount: { 
-      type: Number, 
-      default: 0, 
-      min: 0 
-    },
-    tax_rate: { 
-      type: Number, 
-      default: 0, 
-      min: 0 
-    },
-    tax_amount: { 
-      type: Number, 
-      default: 0, 
-      min: 0 
-    },
-    total_amount: { 
-      type: Number, 
-      required: true, 
-      min: 0 
-    },
-    currency: { 
-      type: String, 
-      default: 'USD' 
-    },
-    status: {
+    invoiceNumber: {
       type: String,
       required: true,
-      enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled'],
-      default: 'draft',
-      index: true
+      unique: true,
+      trim: true,
+      index: true,
     },
-    due_date: { 
-      type: Date, 
-      index: true 
+    lineItems: {
+      type: [invoiceLineItemSchema],
+      required: true,
     },
-    paid_at: Date,
-    notes: String,
+    subtotalCents: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    totalCents: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    currency: {
+      type: String,
+      default: 'USD',
+    },
+    pdfStorageKey: String,
   },
   {
-    timestamps: true 
+    timestamps: { createdAt: true, updatedAt: false },
   }
 );
 
-/**
- * 3. INDEXES
- * (client_id, status) -> Fast lookup for client billing history.
- * (due_date) -> Fast lookup for overdue tracking.
- */
-invoiceSchema.index({ client_id: 1, status: 1 });
+invoiceSchema.index({ userId: 1, createdAt: -1 });
 
 const Invoice = model<IInvoice>('Invoice', invoiceSchema);
 

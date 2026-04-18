@@ -1,11 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from 'jsonwebtoken';
 import asyncHandler from 'express-async-handler';
-import User from '../models/User.ts';
-import type {IUser} from '../models/User.ts';
+import User from '../models/User.js';
+import type {IUser} from '../models/User.js';
+import * as creditService from '../services/creditService.js';
 import dotenv from 'dotenv';
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 // Extend express Request type to include the user
 export interface AuthRequest extends Request {
@@ -41,6 +42,9 @@ export const authenticate = asyncHandler(async(req: AuthRequest, res: Response, 
         res.status(403)
         throw new Error('User account is deactivated');
       }
+
+      // Fetch latest credit balance from the new ledger system
+      user.credits = await creditService.getBalance(user.id);
 
       req.user = user;
       next();

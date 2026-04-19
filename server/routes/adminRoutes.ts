@@ -18,6 +18,8 @@ router.patch('/orders/:id/review',                adminCtrl.reviewOrder);
 router.patch('/orders/:id/assign',                adminCtrl.assignOrder);
 router.patch('/orders/:oid/items/:iid/status',    adminCtrl.transitionItemStatus);
 router.post('/orders/:oid/items/:iid/deliver',    adminCtrl.deliverItem);
+router.post('/orders/:oid/items/:iid/assets',     adminCtrl.addAssetToItem);
+router.delete('/orders/:oid/items/:iid/assets/:assetId', adminCtrl.removeAssetFromItem);
 router.post('/orders/:oid/items/:iid/refund',     adminCtrl.refundItem);
 
 // ─── Staff & Users ──────────────────────────────────────────────

@@ -28,6 +28,13 @@ import logger, { serializeError } from './utils/logger.js';
 
 dotenv.config({ quiet: true });
 
+logger.info('config.paypal_env_check', {
+  clientId: process.env.PAYPAL_CLIENT_ID?.slice(0, 6),
+  hasSecret: !!process.env.PAYPAL_CLIENT_SECRET,
+});
+
+
+
 const app = express();
 const httpServer = createServer(app);
 

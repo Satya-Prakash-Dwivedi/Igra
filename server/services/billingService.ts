@@ -11,7 +11,8 @@ import logger from '../utils/logger.js';
 function getPayPalClient() {
   const clientId = process.env.PAYPAL_CLIENT_ID || '';
   const clientSecret = process.env.PAYPAL_SECRET || '';
-  const environment = process.env.PAYPAL_MODE === 'live' 
+  const mode = process.env.PAYPAL_MODE || 'sandbox';
+  const environment = (mode === 'live' || mode === 'production')
     ? new paypal.core.LiveEnvironment(clientId, clientSecret)
     : new paypal.core.SandboxEnvironment(clientId, clientSecret);
   return new paypal.core.PayPalHttpClient(environment);

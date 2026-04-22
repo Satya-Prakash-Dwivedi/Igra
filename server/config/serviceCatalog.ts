@@ -17,12 +17,12 @@ export interface ServiceDef {
 export const SERVICE_CATALOG: Record<OrderItemKind, ServiceDef> = {
   [OrderItemKind.VIDEO_EDIT]: {
     label: 'Video',
-    baseCredits: 0, // Computed dynamically (20 per min, min 100)
+    baseCredits: 0, // Computed dynamically (20 per min)
     perMinuteCredits: 20,
     defaultRevisions: 2,
     requiredParams: ['rawFootageLength', 'desiredLength', 'outputRatio'],
     description: 'Professional video editing',
-    pricingText: '20 credits per minute of raw footage (min. 100 credits)',
+    pricingText: '20 credits per minute of raw footage',
   },
   [OrderItemKind.THUMBNAIL]: {
     label: 'Thumbnail Design',
@@ -38,7 +38,7 @@ export const SERVICE_CATALOG: Record<OrderItemKind, ServiceDef> = {
     defaultRevisions: 2,
     requiredParams: [],
     description: 'Custom animated intro for your channel',
-    pricingText: 'Starting at 100 credits',
+    pricingText: '100 credits',
   },
   [OrderItemKind.OUTRO]: {
     label: 'Custom Outro',
@@ -46,7 +46,7 @@ export const SERVICE_CATALOG: Record<OrderItemKind, ServiceDef> = {
     defaultRevisions: 2,
     requiredParams: [],
     description: 'Custom animated outro for your channel',
-    pricingText: 'Starting at 100 credits',
+    pricingText: '100 credits',
   },
   [OrderItemKind.VOICEOVER]: {
     label: 'AI Voiceover',

@@ -30,7 +30,7 @@ dotenv.config({ quiet: true });
 
 logger.info('config.paypal_env_check', {
   clientId: process.env.PAYPAL_CLIENT_ID?.slice(0, 6),
-  hasSecret: !!process.env.PAYPAL_CLIENT_SECRET,
+  hasSecret: !!process.env.PAYPAL_SECRET,
 });
 
 

@@ -1,8 +1,9 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export enum AssetRole {
-  INPUT  = 'INPUT',
-  OUTPUT = 'OUTPUT',
+  INPUT    = 'INPUT',
+  OUTPUT   = 'OUTPUT',
+  DELIVERY = 'DELIVERY',
 }
 
 export interface IAssetLink extends Document {

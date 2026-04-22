@@ -12,7 +12,7 @@ export function computePricingSnapshot(
   const modifiers: { label: string; delta: number }[] = [];
 
   if (kind === OrderItemKind.VIDEO_EDIT) {
-    base = Math.max(100, (params.rawFootageLength || 0) * 20);
+    base = (params.rawFootageLength || 0) * 20;
     
     if (params.hasRawFootage === false) {
       modifiers.push({ label: 'No raw footage provided', delta: 100 });
@@ -29,13 +29,13 @@ export function computePricingSnapshot(
   if (kind === OrderItemKind.SCRIPT) {
     const words = params.wordCount || 0;
     const blocks = Math.ceil(words / 500);
-    base = Math.max(100, blocks * 100);
+    base = blocks * 100;
   }
 
   if (kind === OrderItemKind.CONSULTATION) {
     const mins = params.duration || 15;
     const blocks = Math.ceil(mins / 15);
-    base = Math.max(100, blocks * 100);
+    base = blocks * 100;
   }
 
   if (kind === OrderItemKind.FOOTAGE_REVIEW) {

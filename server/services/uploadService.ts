@@ -263,7 +263,9 @@ export async function finalizeUpload(sessionId: string) {
     assetVersionId: assetVersion?._id?.toString(),
   });
 
-  return { assetVersion };
+  const url = await getAssetDownloadUrl(assetVersion.assetId.toString());
+
+  return { assetVersion, url };
 }
 
 export async function getUploadStatus(sessionId: string) {

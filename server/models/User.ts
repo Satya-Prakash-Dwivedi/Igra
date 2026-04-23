@@ -28,6 +28,8 @@ export interface IUser extends Document {
   };
   credits?: number;
   lastLoginAt?: Date;
+  verificationToken?: string;
+  verificationTokenExpires?: Date;
   createdAt : Date;
   updatedAt : Date;
 

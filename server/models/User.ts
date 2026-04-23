@@ -107,6 +107,14 @@ const userSchema = new Schema<IUser>(
     lastLoginAt: {
       type: Date,
     },
+    verificationToken: {
+      type: String,
+      select: false,
+    },
+    verificationTokenExpires: {
+      type: Date,
+      select: false,
+    },
   },
   {
     timestamps: true, // Automatically manage createdAt and updatedAt

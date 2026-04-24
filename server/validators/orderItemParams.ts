@@ -6,6 +6,7 @@ import { OrderItemKind } from '../models/OrderItem.js';
 const genericParams = z.object({
   uploadType: z.enum(['file', 'link']).optional(),
   uploadLink: z.string().optional(),
+  externalLinks: z.array(z.string()).optional(),
   assetIds: z.array(z.string()).optional(),
   notes: z.string().optional(),
 });
@@ -20,6 +21,7 @@ const videoEditParams = z.object({
   pace: z.string().optional(),
   uploadType: z.enum(['file', 'link']).optional(),
   uploadLink: z.string().optional(),
+  externalLinks: z.array(z.string()).optional(),
   assetIds: z.array(z.string()).optional(),
   notes: z.string().optional(),
 });

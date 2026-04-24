@@ -7,6 +7,8 @@ import Asset from '../models/Asset.js';
 import AssetVersion from '../models/AssetVersion.js';
 import path from 'path';
 import fs from 'fs';
+import logger from '../utils/logger.js';
+
 
 // ─── Start Upload ─────────────────────────────────────────────
 export const startUpload = asyncHandler(async (req: AuthRequest, res: Response) => {

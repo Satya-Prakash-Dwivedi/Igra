@@ -28,6 +28,8 @@ export interface IUser extends Document {
   };
   credits?: number;
   lastLoginAt?: Date;
+  verificationToken?: string;
+  verificationTokenExpires?: Date;
   createdAt : Date;
   updatedAt : Date;
 
@@ -106,6 +108,14 @@ const userSchema = new Schema<IUser>(
     },
     lastLoginAt: {
       type: Date,
+    },
+    verificationToken: {
+      type: String,
+      select: false,
+    },
+    verificationTokenExpires: {
+      type: Date,
+      select: false,
     },
   },
   {

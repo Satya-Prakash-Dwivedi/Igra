@@ -15,6 +15,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^25.3.5",
+    "@types/nodemailer": "^8.0.0",
     "@types/paypal__checkout-server-sdk": "^1.0.8",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
@@ -42,6 +43,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.4",
     "nanoid": "^5.1.7",
+    "nodemailer": "^8.0.5",
     "socket.io": "^4.8.3",
     "winston": "^3.19.0",
     "zod": "^4.3.6"

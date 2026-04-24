@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import User from '../models/User.js';
 import Order, { OrderStatus, ORDER_TRANSITIONS } from '../models/Order.js';
 import OrderItem, { OrderItemKind, OrderItemStatus, ITEM_TRANSITIONS } from '../models/OrderItem.js';
 import AssetLink, { AssetRole } from '../models/AssetLink.js';
@@ -100,15 +101,30 @@ export async function removeItem(orderId: string, itemId: string, userId: string
 }
 
 // ─── Add Asset To Item ────────────────────────────────────────
-export async function addAssetToItem(orderId: string, itemId: string, userId: string, assetIds: string[]) {
-  const order = await Order.findOne({ _id: orderId, userId });
+export async function addAssetToItem(
+  orderId: string, 
+  itemId: string, 
+  actorId: string, 
+  assetIds: string[],
+  role: AssetRole = AssetRole.INPUT
+) {
+  const order = await Order.findById(orderId);
   if (!order) throw new Error('Order not found');
+
+  // Authorization check
+  const actor = await User.findById(actorId);
+  const isOwner = order.userId.toString() === actorId;
+  const isStaff = actor && ['admin', 'staff'].includes(actor.role);
+
+  if (!isOwner && !isStaff) {
+    throw new Error('Unauthorized or order not found');
+  }
 
   const item = await OrderItem.findOne({ _id: itemId, orderId });
   if (!item) throw new Error('Item not found');
 
   if (assetIds.length > 0) {
-    const existingLinks = await AssetLink.find({ orderItemId: item._id, role: AssetRole.INPUT })
+    const existingLinks = await AssetLink.find({ orderItemId: item._id, role })
       .sort({ orderIndex: -1 })
       .limit(1);
     const startIndex = existingLinks.length > 0 ? (existingLinks[0].orderIndex || 0) + 1 : 0;
@@ -116,12 +132,12 @@ export async function addAssetToItem(orderId: string, itemId: string, userId: st
     await AssetLink.create(assetIds.map((assetId, index) => ({
       orderItemId: item._id,
       assetId: new mongoose.Types.ObjectId(assetId),
-      role: AssetRole.INPUT,
+      role,
       orderIndex: startIndex + index
     })));
   }
 
-  await auditService.appendItemEvent(itemId, 'ASSETS_ADDED', { count: assetIds.length }, userId);
+  await auditService.appendItemEvent(itemId, 'ASSETS_ADDED', { count: assetIds.length, role }, actorId);
 
   return item;
 }
@@ -399,11 +415,20 @@ export async function getOrderDetail(orderId: string) {
 export async function removeAssetFromItem(
   orderId: string,
   itemId: string,
-  userId: string,
+  actorId: string,
   assetId: string
 ) {
-  const order = await Order.findOne({ _id: orderId, userId });
+  const order = await Order.findById(orderId);
   if (!order) throw new Error('Order not found');
+
+  // Authorization check
+  const actor = await User.findById(actorId);
+  const isOwner = order.userId.toString() === actorId;
+  const isStaff = actor && ['admin', 'staff'].includes(actor.role);
+
+  if (!isOwner && !isStaff) {
+    throw new Error('Unauthorized or order not found');
+  }
 
   // Find the link
   const link = await AssetLink.findOne({ orderItemId: itemId, assetId });
@@ -415,7 +440,7 @@ export async function removeAssetFromItem(
   // Delete the asset and file
   await uploadService.deleteAsset(assetId);
 
-  await auditService.appendItemEvent(itemId, 'ASSET_REMOVED', { assetId }, userId);
+  await auditService.appendItemEvent(itemId, 'ASSET_REMOVED', { assetId }, actorId);
 
   return { success: true };
 }
@@ -445,9 +470,10 @@ export async function listOrders(userId: string, status?: string, page = 1, limi
 }
 
 // ─── Admin: List All Orders ───────────────────────────────────
-export async function listAllOrders(status?: string, page = 1, limit = 20) {
+export async function listAllOrders(status?: string, assignedTo?: string, page = 1, limit = 20) {
   const filter: Record<string, any> = {};
   if (status) filter.status = status;
+  if (assignedTo) filter.assignedTo = new mongoose.Types.ObjectId(assignedTo);
 
   const [orders, total] = await Promise.all([
     Order.find(filter)
@@ -455,7 +481,7 @@ export async function listAllOrders(status?: string, page = 1, limit = 20) {
       .skip((page - 1) * limit)
       .limit(limit)
       .populate('userId', 'name email')
-      .populate('assignedTo', 'name email')
+      .populate('assignedTo', 'name email avatar')
       .lean(),
     Order.countDocuments(filter),
   ]);

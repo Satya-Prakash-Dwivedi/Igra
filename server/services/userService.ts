@@ -62,7 +62,7 @@ export const listStaff = async () => {
  * List paginated users with their total orders
  */
 export async function listUsers(page: number, limit: number, search: string, excludeUserId?: string) {
-    const query: any = { role: 'user' };
+    const query: any = { role: { $in: ['user', 'staff'] } };
     
     if (excludeUserId) {
         query._id = { $ne: excludeUserId };

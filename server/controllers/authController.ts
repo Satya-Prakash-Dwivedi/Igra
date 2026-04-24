@@ -10,37 +10,42 @@ import * as creditService from '../services/creditService.js';
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 import type { AuthRequest } from '../middleware/auth.js';
 import { updateProfileSchema } from '../validators/userValidator.js';
+import * as emailService from '../services/emailService.js';
 
 dotenv.config({ quiet: true })
 
 export const register = asyncHandler(async(req: Request, res: Response) => {
     const { name , email, password } = req.body;
 
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
     // Call the userService to create the user
-    const user = await userService.createUser({name, email, password});
+    const user = await userService.createUser({
+        name, 
+        email, 
+        password,
+        verificationToken,
+        verificationTokenExpires
+    } as any);
 
-    // Generate tokens
-    const {access_token, refresh_token} = authService.generateTokens(user.id);
+    // Send the verification email
+    try {
+        await emailService.sendVerificationEmail(user.email, verificationToken);
+    } catch (error) {
+        // If email fails, delete the created user so they can try again
+        await User.findByIdAndDelete(user._id);
+        res.status(500);
+        throw new Error('Failed to send verification email. Please try again.');
+    }
 
-    // Set the refresh token in cookie
-    authService.setRefreshTokenCookie(res, refresh_token);
-
-    // Send the response back
+    // Send the response back without tokens
     res.status(201).json({
         success: true,
-        data: {
-            user : {
-                id : user._id,
-                name : user.name,
-                email : user.email,
-                role : user.role,
-                credits: await creditService.getBalance(user.id),
-            },
-            access_token,
-        },
-        message: 'User registered successfully'
+        message: 'Registration successful. Please check your email to verify your account.'
     });
 });
 
@@ -55,10 +60,15 @@ export const login = asyncHandler(async(req: Request, res: Response) => {
         throw new Error("Invalid email or password");
     }
 
+    if (!user.isVerified) {
+        res.status(403);
+        throw new Error("Please verify your email address to login.");
+    }
+
     // 3. Check if user is active
     if(!user.isActive){
         res.status(403) // Forbidden
-        throw new Error("Account is diabled, Please contact support.");
+        throw new Error("Account is disabled, Please contact support.");
     }
 
     // 4. Update last login time
@@ -175,5 +185,34 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
             },
         },
         message: 'Profile updated successfully',
+    });
+});
+
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+    const { token } = req.body;
+    
+    if (!token) {
+        res.status(400);
+        throw new Error('Verification token is required');
+    }
+
+    const user = await User.findOne({ 
+        verificationToken: token, 
+        verificationTokenExpires: { $gt: new Date() } 
+    }).select('+verificationToken +verificationTokenExpires');
+
+    if (!user) {
+        res.status(400);
+        throw new Error('Invalid or expired verification token');
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpires = undefined;
+    await user.save();
+
+    res.json({
+        success: true,
+        message: 'Email verified successfully. You can now login.'
     });
 });

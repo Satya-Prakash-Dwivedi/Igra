@@ -40,12 +40,14 @@ export const getDashboardStats = asyncHandler(async (_req: AuthRequest, res: Res
     });
 });
 
-// ─── List All Orders ───────────────────────────────────────────
+// ─── List Orders ───────────────────────────────────────────────────
 export const listAllOrders = asyncHandler(async (req: AuthRequest, res: Response) => {
     const status = req.query.status as string | undefined;
+    const assignedTo = req.query.assignedTo as string | undefined;
     const page = Number(req.query.page || '1');
-    const limit = Math.min(Number(req.query.limit || '20'), 100); // cap at 100
-    const result = await orderService.listAllOrders(status, page, limit);
+    const limit = Number(req.query.limit || '10');
+
+    const result = await orderService.listAllOrders(status, assignedTo, page, limit);
     res.json({ success: true, data: result });
 });
 
@@ -54,7 +56,7 @@ export const reviewOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     const { action } = reviewOrderSchema.parse(req.body); // throws 400 on bad action
     const id = req.params.id as string;
     const order = await orderService.reviewOrder(id, req.user!._id.toString(), action);
-    res.json({ success: true, data: order });
+    res.json({ success: true, data: { order } });
 });
 
 // ─── Assign Order (Gap 3: verified staffId) ───────────────────
@@ -69,8 +71,12 @@ export const assignOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     }
 
     const id = req.params.id as string;
-    const order = await orderService.assignOrder(id, req.user!._id.toString(), staffId);
-    res.json({ success: true, data: order });
+    let order = await orderService.assignOrder(id, req.user!._id.toString(), staffId);
+    
+    // Populate assignedTo for the frontend
+    order = (await Order.findById(order._id).populate('assignedTo', 'name email avatar'))!;
+
+    res.json({ success: true, data: { order } });
 });
 
 // ─── Transition Item Status (Gap 5: validated status enum) ────
@@ -78,14 +84,32 @@ export const transitionItemStatus = asyncHandler(async (req: AuthRequest, res: R
     const { status } = transitionStatusSchema.parse(req.body); // throws 400 on invalid status
     const iid = req.params.iid as string;
     const item = await orderService.transitionItemStatus(iid, status as OrderItemStatus, req.user!._id.toString());
-    res.json({ success: true, data: item });
+    res.json({ success: true, data: { item } });
 });
 
 // ─── Deliver Item ──────────────────────────────────────────────
 export const deliverItem = asyncHandler(async (req: AuthRequest, res: Response) => {
     const iid = req.params.iid as string;
     const item = await orderService.deliverItem(iid, req.user!._id.toString());
-    res.json({ success: true, data: item });
+    res.json({ success: true, data: { item } });
+});
+
+// ─── Add Asset To Item ────────────────────────────────────────
+export const addAssetToItem = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const oid = req.params.oid as string;
+    const iid = req.params.iid as string;
+    const { assetIds, role } = req.body;
+    const item = await orderService.addAssetToItem(oid, iid, req.user!._id.toString(), assetIds || [], role);
+    res.json({ success: true, data: { item } });
+});
+
+// ─── Remove Asset From Item ───────────────────────────────────
+export const removeAssetFromItem = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const oid = req.params.oid as string;
+    const iid = req.params.iid as string;
+    const assetId = req.params.assetId as string;
+    const result = await orderService.removeAssetFromItem(oid, iid, req.user!._id.toString(), assetId);
+    res.json({ success: true, data: result });
 });
 
 // ─── Refund Failed Item ───────────────────────────────────────

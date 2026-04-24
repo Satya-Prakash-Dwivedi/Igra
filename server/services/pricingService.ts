@@ -28,8 +28,7 @@ export function computePricingSnapshot(
 
   if (kind === OrderItemKind.SCRIPT) {
     const words = params.wordCount || 0;
-    const blocks = Math.ceil(words / 500);
-    base = blocks * 100;
+    base = Math.ceil(words * 0.2);
   }
 
   if (kind === OrderItemKind.CONSULTATION) {

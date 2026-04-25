@@ -116,11 +116,11 @@ export const SERVICE_CATALOG: Record<OrderItemKind, ServiceDef> = {
   },
   [OrderItemKind.CUSTOM]: {
     label: 'Custom Request',
-    baseCredits: 0,
+    baseCredits: 50,
     defaultRevisions: 2,
     requiredParams: ['description'],
     description: 'Let us know what you need',
-    pricingText: 'Priced after review',
+    pricingText: '50 credits',
   },
 };
 

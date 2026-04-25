@@ -76,6 +76,7 @@ export async function startUpload(
 
   if (!s3Disabled) {
     try {
+      logger.info('upload.s3_init_start', { bucket: S3_BUCKET, key: storageKey, isDirect });
       if (isDirect) {
         // Direct PutObject (much faster for small files)
         const cmd = new PutObjectCommand({
@@ -84,8 +85,6 @@ export async function startUpload(
           ContentType: mimeType,
           ChecksumAlgorithm: undefined,
         });
-        // We use signers to generate a URL, but we must ensure we don't sign headers
-        // that the browser won't automatically send.
         const url = await getPresignedUrl(s3Client, cmd, { expiresIn: 3600 });
         presignedUrls.push(url);
         providerUploadId = 'direct-put'; // Skip Multipart ID
@@ -98,6 +97,7 @@ export async function startUpload(
         });
         const result = await s3Client.send(cmd);
         providerUploadId = result.UploadId!;
+        logger.info('upload.s3_multipart_created', { uploadId: providerUploadId });
 
         // Generate presigned URLs for each part
         for (let i = 1; i <= totalParts; i++) {
@@ -174,6 +174,11 @@ export async function registerPart(
   const existingPart = session.partsUploaded.find(p => p.partNumber === partNumber);
   if (existingPart) return session;
 
+  // Check for placeholder ETags (common if CORS is misconfigured)
+  if (etag.startsWith('part-')) {
+    logger.warn('upload.placeholder_etag_received', { sessionId, partNumber, etag });
+  }
+
   session.partsUploaded.push({ partNumber, etag, sizeBytes });
   await session.save();
 
@@ -205,23 +210,32 @@ export async function finalizeUpload(sessionId: string) {
     // ONLY call CompleteMultipartUpload if we actually had a multipart session
     if (session.providerUploadId !== 'direct-put') {
       try {
+        const parts = session.partsUploaded
+          .sort((a, b) => a.partNumber - b.partNumber)
+          .map(p => ({
+            PartNumber: p.partNumber,
+            ETag: p.etag,
+          }));
+        
+        logger.info('upload.s3_finalize_attempt', { 
+          uploadId: session.providerUploadId, 
+          partsCount: parts.length,
+          storageKey: assetVersion.storageKey 
+        });
+
         const cmd = new CompleteMultipartUploadCommand({
           Bucket: S3_BUCKET,
           Key: assetVersion.storageKey,
           UploadId: session.providerUploadId,
-          MultipartUpload: {
-            Parts: session.partsUploaded
-              .sort((a, b) => a.partNumber - b.partNumber)
-              .map(p => ({
-                PartNumber: p.partNumber,
-                ETag: p.etag,
-              })),
-          },
+          MultipartUpload: { Parts: parts },
         });
         await s3Client.send(cmd);
       } catch (err) {
-        logger.error('upload.s3_finalize_failed', { error: serializeError(err) });
-        throw new Error('S3 completion failed');
+        logger.error('upload.s3_finalize_failed', { 
+          uploadId: session.providerUploadId,
+          error: serializeError(err) 
+        });
+        throw new Error('S3 completion failed. This often happens if the ETag header was not exposed in S3 CORS settings.');
       }
     }
   } else {

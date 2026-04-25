@@ -7,6 +7,8 @@ import Asset from '../models/Asset.js';
 import AssetVersion from '../models/AssetVersion.js';
 import path from 'path';
 import fs from 'fs';
+import logger from '../utils/logger.js';
+
 
 // ─── Start Upload ─────────────────────────────────────────────
 export const startUpload = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -47,10 +49,22 @@ export const resumeUpload = asyncHandler(async (req: AuthRequest, res: Response)
 // ─── Handle Local Part Upload ─────────────────────────────────
 export const handleLocalPartUpload = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { sessionId, partNumber } = req.params;
-  const data = req.body as Buffer;
+  const data = req.body;
 
-  if (!data || data.length === 0) {
-    res.status(400).json({ error: 'No data received' });
+  if (!data || !Buffer.isBuffer(data)) {
+    logger.error('upload.local_part_invalid_body', { 
+      sessionId, 
+      partNumber, 
+      bodyType: typeof data,
+      isBuffer: Buffer.isBuffer(data),
+      contentType: req.headers['content-type']
+    });
+    res.status(400).json({ error: 'No binary data received. Ensure Content-Type matches the upload proxy configuration.' });
+    return;
+  }
+
+  if (data.length === 0) {
+    res.status(400).json({ error: 'Received an empty data chunk.' });
     return;
   }
 

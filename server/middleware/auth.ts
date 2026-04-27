@@ -49,8 +49,11 @@ export const authenticate = asyncHandler(async(req: AuthRequest, res: Response, 
       req.user = user;
       next();
 
-    } catch (error) {
+    } catch (error: any) {
         res.status(401);
+        if (error.name === 'TokenExpiredError') {
+            throw new Error('Not authorized, token expired');
+        }
         throw new Error('Not authorized, token failed');
     };
 });

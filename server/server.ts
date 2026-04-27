@@ -23,6 +23,7 @@ import uploadRoutes from './routes/uploadRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import directMessageRoutes from './routes/directMessageRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import logger, { serializeError } from './utils/logger.js';
 
@@ -72,6 +73,14 @@ io.on('connection', (socket) => {
   socket.on('join-dm', (userId: string) => {
     socket.join(`dm:${userId}`);
     logger.info('socket.joined_dm', {
+      socketId: socket.id,
+      userId,
+    });
+  });
+
+  socket.on('join-user', (userId: string) => {
+    socket.join(`user:${userId}`);
+    logger.info('socket.joined_user', {
       socketId: socket.id,
       userId,
     });
@@ -154,6 +163,7 @@ app.use('/api/v1/credits',         creditRoutes);
 app.use('/api/v1/billing',         billingRoutes);
 app.use('/api/v1/uploads',         uploadRoutes);
 app.use('/api/v1/admin',           adminRoutes);
+app.use('/api/v1/notifications',   notificationRoutes);
 app.use('/api/v1/webhooks',        webhookRoutes);
 
 // Static Assets

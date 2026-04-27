@@ -2,6 +2,8 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
 import Message from '../models/Message.js';
+import Notification from '../models/Notification.js';
+import Order from '../models/Order.js';
 
 // ─── Get Messages for Order ───────────────────────────────────
 export const getMessages = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -40,6 +42,46 @@ export const sendMessage = asyncHandler(async (req: AuthRequest, res: Response) 
   const io = req.app.get('io');
   if (io) {
     io.to(`order:${orderId}`).emit('new-message', populated);
+  }
+
+  // Create notification for recipients
+  if (user.role === 'user') {
+    // Client sent message -> Notify admins or assigned staff
+    const order = await Order.findById(orderId).lean();
+    if (order) {
+      const recipientId = order.assignedTo || (await (await import('../models/User.js')).default.findOne({ role: 'admin' }).select('_id').lean())?._id;
+      if (recipientId) {
+        const notif = await Notification.create({
+          recipientId,
+          senderId: user._id,
+          type: 'MESSAGE',
+          content: `New message on Order #${order.orderNumber}`,
+          orderId,
+          messageId: message._id,
+        });
+        if (io) {
+          const populatedNotif = await Notification.findById(notif._id).populate('senderId', 'name avatar').lean();
+          io.to(`user:${recipientId}`).emit('new-notification', populatedNotif);
+        }
+      }
+    }
+  } else {
+    // Admin/Staff sent message -> Notify client
+    const order = await Order.findById(orderId).lean();
+    if (order) {
+      const notif = await Notification.create({
+        recipientId: order.userId,
+        senderId: user._id,
+        type: 'MESSAGE',
+        content: `New message on Order #${order.orderNumber}`,
+        orderId,
+        messageId: message._id,
+      });
+      if (io) {
+        const populatedNotif = await Notification.findById(notif._id).populate('senderId', 'name avatar').lean();
+        io.to(`user:${order.userId}`).emit('new-notification', populatedNotif);
+      }
+    }
   }
 
   res.status(201).json({ success: true, data: populated });
@@ -82,6 +124,23 @@ export const sendDirectMessage = asyncHandler(async (req: AuthRequest, res: Resp
   const io = req.app.get('io');
   if (io) {
     io.to(`dm:${userId}`).emit('new-dm', populated);
+  }
+
+  // Notify admins (since it's a DM to the studio)
+  const User = (await import('../models/User.js')).default;
+  const admins = await User.find({ role: 'admin' }).select('_id').lean();
+  for (const admin of admins) {
+    const notif = await Notification.create({
+      recipientId: admin._id,
+      senderId: userId,
+      type: 'MESSAGE',
+      content: 'New DM from client',
+      messageId: message._id,
+    });
+    if (io) {
+      const populatedNotif = await Notification.findById(notif._id).populate('senderId', 'name avatar').lean();
+      io.to(`user:${admin._id}`).emit('new-notification', populatedNotif);
+    }
   }
 
   res.status(201).json({ success: true, data: populated });
@@ -166,5 +225,32 @@ export const replyDirectMessage = asyncHandler(async (req: AuthRequest, res: Res
     io.to(`dm:${targetUserId}`).emit('new-dm', populated);
   }
 
+  // Notify client
+  const notification = await Notification.create({
+    recipientId: targetUserId,
+    senderId: adminId,
+    type: 'MESSAGE',
+    content: 'New DM from studio',
+    messageId: message._id,
+  });
+
+  if (io) {
+    const populatedNotif = await Notification.findById(notification._id).populate('senderId', 'name avatar').lean();
+    io.to(`user:${targetUserId}`).emit('new-notification', populatedNotif);
+  }
+
   res.status(201).json({ success: true, data: populated });
+});
+
+// Admin: List all recent messages across all orders
+export const listAllRecentMessages = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const limit = Math.min(Number(req.query.limit || '10'), 50);
+  const messages = await Message.find({ isDirectMessage: false })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate('senderId', 'name avatar')
+    .populate('orderId', 'orderNumber title')
+    .lean();
+  
+  res.json({ success: true, data: messages });
 });

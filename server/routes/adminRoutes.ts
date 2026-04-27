@@ -37,6 +37,7 @@ router.patch('/support/tickets/:id/status',       adminCtrl.updateTicketStatus);
 router.patch('/support/bugs/:id/status',          adminCtrl.updateBugReportStatus);
 
 // ─── Direct Messages ──────────────────────────────────────────
+router.get('/messages/recent',                    messageCtrl.listAllRecentMessages);
 router.get('/messages/direct',                    messageCtrl.listDirectMessageThreads);
 router.get('/messages/direct/:userId',            messageCtrl.getDirectMessagesForUser);
 router.post('/messages/direct/:userId',           messageCtrl.replyDirectMessage);

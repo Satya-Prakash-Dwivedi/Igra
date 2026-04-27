@@ -6,6 +6,7 @@ import type {Request, Response} from 'express';
 import asyncHandler from 'express-async-handler';
 import * as userService from '../services/userService.js';
 import * as authService from '../services/authService.js';
+import { normalizeAssetUrl } from '../services/uploadService.js';
 import * as creditService from '../services/creditService.js';
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
@@ -81,14 +82,25 @@ export const login = asyncHandler(async(req: Request, res: Response) => {
     const {access_token, refresh_token} = authService.generateTokens(user.id);
     authService.setRefreshTokenCookie(res, refresh_token);
 
-    // 6. Send Response
+    // 6. Normalize avatar and Save Response
+    if (user.avatar) {
+        const normalized = await normalizeAssetUrl(user.avatar);
+        if (normalized !== user.avatar) {
+            (user as any).avatar = normalized;
+            await (user as any).save();
+        }
+    }
+
     res.json({
         success: true,
         data : {
             user : {
                 id : user.id,
                 name : user.name,
+                firstName: user.firstName,
+                lastName: user.lastName,
                 email : user.email,
+                avatar: user.avatar,
                 role : user.role,
                 credits: await creditService.getBalance(user.id),
             },
@@ -99,11 +111,33 @@ export const login = asyncHandler(async(req: Request, res: Response) => {
 });
 
 export const getProfile = asyncHandler(async(req: AuthRequest, res: Response) => {
-    // We can just send back the user that was attached by the authenticate middleware
+    const user = req.user!;
+    
+    // Normalize avatar and save back to DB if needed
+    if (user.avatar) {
+        const normalized = await normalizeAssetUrl(user.avatar);
+        if (normalized !== user.avatar) {
+            (user as any).avatar = normalized;
+            await (user as any).save();
+        }
+    }
+
     res.json({
         success: true,
         data : {
-            user : req.user,
+            user : {
+                id: user.id,
+                name: user.name,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                avatar: user.avatar,
+                role: user.role,
+                company: user.company,
+                youtubeChannel: user.youtubeChannel,
+                notificationPreferences: user.notificationPreferences,
+                credits: user.credits, // Already fetched in authenticate middleware
+            },
         },
     });
 });
@@ -164,6 +198,10 @@ export const logout = asyncHandler(async(req: Request, res : Response) => {
 export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
     // 1. Validate request body
     const validatedData = updateProfileSchema.parse(req.body);
+    
+    if (validatedData.avatar) {
+        validatedData.avatar = await normalizeAssetUrl(validatedData.avatar);
+    }
 
     // 2. Call service to update user
     const updatedUser = await userService.updateUserProfile(req.user!.id, validatedData);

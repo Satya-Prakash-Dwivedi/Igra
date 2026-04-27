@@ -12,6 +12,9 @@ router.get('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.patch('/profile', authenticate, authController.updateProfile);
 router.post('/verify-email', authController.verifyEmail);
+router.post('/resend-verification', authController.resendVerificationEmail);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
 
 
 export default router;

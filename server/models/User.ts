@@ -30,6 +30,8 @@ export interface IUser extends Document {
   lastLoginAt?: Date;
   verificationToken?: string;
   verificationTokenExpires?: Date;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   createdAt : Date;
   updatedAt : Date;
 
@@ -114,6 +116,14 @@ const userSchema = new Schema<IUser>(
       select: false,
     },
     verificationTokenExpires: {
+      type: Date,
+      select: false,
+    },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpires: {
       type: Date,
       select: false,
     },

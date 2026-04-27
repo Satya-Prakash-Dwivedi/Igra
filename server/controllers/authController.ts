@@ -14,6 +14,7 @@ import crypto from 'crypto';
 import type { AuthRequest } from '../middleware/auth.js';
 import { updateProfileSchema } from '../validators/userValidator.js';
 import * as emailService from '../services/emailService.js';
+import logger from '../utils/logger.js';
 
 dotenv.config({ quiet: true })
 
@@ -50,7 +51,8 @@ export const register = asyncHandler(async(req: Request, res: Response) => {
 });
 
 export const login = asyncHandler(async(req: Request, res: Response) => {
-    const {email, password} = req.body;
+    const {email: rawEmail, password} = req.body;
+    const email = rawEmail?.toLowerCase().trim();
 
     // 1. Find the user and explicitly ask for the password ( since we hidden it in schema )
     const user = await User.findOne({email}).select('+password');
@@ -214,5 +216,118 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     res.json({
         success: true,
         message: 'Email verified successfully. You can now login.'
+    });
+});
+
+export const resendVerificationEmail = asyncHandler(async (req: Request, res: Response) => {
+    const { email: rawEmail } = req.body;
+    const email = rawEmail?.toLowerCase().trim();
+
+    if (!email) {
+        res.status(400);
+        throw new Error('Email is required');
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found');
+    }
+
+    if (user.isVerified) {
+        res.status(400);
+        throw new Error('Email is already verified');
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpires = verificationTokenExpires;
+    await user.save();
+
+    try {
+        logger.info(`Attempting to resend verification email to: ${user.email}`);
+        await emailService.sendVerificationEmail(user.email, verificationToken);
+        logger.info(`Verification email resent successfully to: ${user.email}`);
+    } catch (error) {
+        logger.error(`Failed to send verification email to ${user.email}:`, error);
+        res.status(500);
+        throw new Error('Failed to send verification email. Please try again.');
+    }
+
+    res.json({
+        success: true,
+        message: 'Verification email resent. Please check your inbox.'
+    });
+});
+
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+    const { email: rawEmail } = req.body;
+    const email = rawEmail?.toLowerCase().trim();
+
+    if (!email) {
+        res.status(400);
+        throw new Error('Email is required');
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+        // For security reasons, don't reveal that the user doesn't exist
+        res.json({
+            success: true,
+            message: 'If an account with that email exists, a password reset link has been sent.'
+        });
+        return;
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpires = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1 hour
+
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = resetTokenExpires;
+    await user.save();
+
+    try {
+        await emailService.sendPasswordResetEmail(user.email, resetToken);
+    } catch (error) {
+        res.status(500);
+        throw new Error('Failed to send password reset email. Please try again.');
+    }
+
+    res.json({
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been sent.'
+    });
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+        res.status(400);
+        throw new Error('Token and password are required');
+    }
+
+    const user = await User.findOne({
+        resetPasswordToken: token,
+        resetPasswordExpires: { $gt: new Date() }
+    }).select('+resetPasswordToken +resetPasswordExpires');
+
+    if (!user) {
+        res.status(400);
+        throw new Error('Invalid or expired reset token');
+    }
+
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({
+        success: true,
+        message: 'Password reset successful. You can now login with your new password.'
     });
 });

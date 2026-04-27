@@ -36,8 +36,9 @@ async function createAdmin() {
         isVerified: true
       });
     } else {
-      console.log(`👤 User already exists: ${emailArg}. Promoting to admin role.`);
+      console.log(`👤 User already exists: ${emailArg}. Updating password and promoting to admin role.`);
       user.role = 'admin';
+      user.password = passwordArg;
       await user.save();
     }
 

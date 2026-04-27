@@ -387,8 +387,8 @@ export async function getOrderDetail(orderId: string) {
       const asset = al.assetId;
       if (!asset) return null;
 
-      // Generate a temporary view/download URL
-      const url = await uploadService.getAssetDownloadUrl(asset._id.toString());
+      // Generate a permanent proxy URL (prevents S3 signed URL expiry issues)
+      const url = await uploadService.getAssetPermanentUrl(asset._id.toString());
 
       return {
         ...asset,

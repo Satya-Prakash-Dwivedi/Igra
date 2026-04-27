@@ -4,6 +4,7 @@ import asyncHandler from 'express-async-handler';
 import Message from '../models/Message.js';
 import Notification from '../models/Notification.js';
 import Order from '../models/Order.js';
+import { normalizeAssetUrl } from '../services/uploadService.js';
 
 // ─── Get Messages for Order ───────────────────────────────────
 export const getMessages = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -37,6 +38,10 @@ export const sendMessage = asyncHandler(async (req: AuthRequest, res: Response) 
   const populated = await Message.findById(message._id)
     .populate('senderId', 'name email avatar role')
     .lean();
+
+  if (populated && populated.senderId && typeof populated.senderId === 'object') {
+    (populated.senderId as any).avatar = await normalizeAssetUrl((populated.senderId as any).avatar);
+  }
 
   // Emit via Socket.IO for real-time delivery
   const io = req.app.get('io');
@@ -100,6 +105,14 @@ export const getDirectMessages = asyncHandler(async (req: AuthRequest, res: Resp
     .limit(limit)
     .populate('senderId', 'name email avatar role')
     .lean();
+
+  // Normalize avatars
+  for (const msg of messages) {
+    if (msg.senderId && typeof msg.senderId === 'object' && (msg.senderId as any).avatar) {
+      (msg.senderId as any).avatar = await normalizeAssetUrl((msg.senderId as any).avatar);
+    }
+  }
+
   const total = await Message.countDocuments({ isDirectMessage: true, userId });
   res.json({ success: true, data: { messages, total, page, limit } });
 });
@@ -121,6 +134,10 @@ export const sendDirectMessage = asyncHandler(async (req: AuthRequest, res: Resp
     .populate('senderId', 'name email avatar role')
     .lean();
 
+  if (populated && populated.senderId && typeof populated.senderId === 'object') {
+    (populated.senderId as any).avatar = await normalizeAssetUrl((populated.senderId as any).avatar);
+  }
+
   const io = req.app.get('io');
   if (io) {
     io.to(`dm:${userId}`).emit('new-dm', populated);
@@ -134,7 +151,7 @@ export const sendDirectMessage = asyncHandler(async (req: AuthRequest, res: Resp
       recipientId: admin._id,
       senderId: userId,
       type: 'MESSAGE',
-      content: 'New DM from client',
+      content: `New DM from ${req.user!.name}`,
       messageId: message._id,
     });
     if (io) {
@@ -219,6 +236,10 @@ export const replyDirectMessage = asyncHandler(async (req: AuthRequest, res: Res
   const populated = await Message.findById(message._id)
     .populate('senderId', 'name email avatar role')
     .lean();
+
+  if (populated && populated.senderId && typeof populated.senderId === 'object') {
+    (populated.senderId as any).avatar = await normalizeAssetUrl((populated.senderId as any).avatar);
+  }
 
   const io = req.app.get('io');
   if (io) {

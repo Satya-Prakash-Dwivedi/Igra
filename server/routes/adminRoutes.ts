@@ -20,6 +20,8 @@ router.patch('/orders/:oid/items/:iid/status',    adminCtrl.transitionItemStatus
 router.post('/orders/:oid/items/:iid/deliver',    adminCtrl.deliverItem);
 router.post('/orders/:oid/items/:iid/assets',     adminCtrl.addAssetToItem);
 router.delete('/orders/:oid/items/:iid/assets/:assetId', adminCtrl.removeAssetFromItem);
+router.post('/orders/:oid/items/:iid/links',      adminCtrl.addDeliveryLink);
+router.delete('/orders/:oid/items/:iid/links',    adminCtrl.removeDeliveryLink);
 router.post('/orders/:oid/items/:iid/refund',     adminCtrl.refundItem);
 
 // ─── Staff & Users ──────────────────────────────────────────────

@@ -5,6 +5,8 @@ import Message from '../models/Message.js';
 import Notification from '../models/Notification.js';
 import Order from '../models/Order.js';
 import { normalizeAssetUrl } from '../services/uploadService.js';
+import * as emailService from '../services/emailService.js';
+import User from '../models/User.js';
 
 // ─── Get Messages for Order ───────────────────────────────────
 export const getMessages = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -68,6 +70,18 @@ export const sendMessage = asyncHandler(async (req: AuthRequest, res: Response) 
           const populatedNotif = await Notification.findById(notif._id).populate('senderId', 'name avatar').lean();
           io.to(`user:${recipientId}`).emit('new-notification', populatedNotif);
         }
+
+        // Send Email Notification
+        const recipient = await User.findById(recipientId).select('name email').lean();
+        if (recipient) {
+          emailService.sendMessageNotificationEmail(
+            recipient,
+            user.name,
+            order.orderNumber,
+            content,
+            orderId
+          ).catch(e => console.error('Email notify failed:', e));
+        }
       }
     }
   } else {
@@ -85,6 +99,18 @@ export const sendMessage = asyncHandler(async (req: AuthRequest, res: Response) 
       if (io) {
         const populatedNotif = await Notification.findById(notif._id).populate('senderId', 'name avatar').lean();
         io.to(`user:${order.userId}`).emit('new-notification', populatedNotif);
+      }
+
+      // Send Email Notification to Client
+      const client = await User.findById(order.userId).select('name email').lean();
+      if (client) {
+        emailService.sendMessageNotificationEmail(
+          client,
+          user.name,
+          order.orderNumber,
+          content,
+          orderId
+        ).catch(e => console.error('Email notify failed:', e));
       }
     }
   }
@@ -157,6 +183,17 @@ export const sendDirectMessage = asyncHandler(async (req: AuthRequest, res: Resp
     if (io) {
       const populatedNotif = await Notification.findById(notif._id).populate('senderId', 'name avatar').lean();
       io.to(`user:${admin._id}`).emit('new-notification', populatedNotif);
+    }
+    
+    // Send Email Notification to Admin
+    const adminUser = await User.findById(admin._id).select('name email').lean();
+    if (adminUser) {
+      emailService.sendMessageNotificationEmail(
+        adminUser,
+        req.user!.name,
+        null, // No specific order number for global DM
+        content
+      ).catch(e => console.error('Email DM notify failed:', e));
     }
   }
 
@@ -258,6 +295,17 @@ export const replyDirectMessage = asyncHandler(async (req: AuthRequest, res: Res
   if (io) {
     const populatedNotif = await Notification.findById(notification._id).populate('senderId', 'name avatar').lean();
     io.to(`user:${targetUserId}`).emit('new-notification', populatedNotif);
+  }
+
+  // Send Email Notification to Client
+  const clientUser = await User.findById(targetUserId).select('name email').lean();
+  if (clientUser) {
+    emailService.sendMessageNotificationEmail(
+      clientUser,
+      req.user!.name,
+      null, // No specific order number
+      content
+    ).catch(e => console.error('Email DM reply notify failed:', e));
   }
 
   res.status(201).json({ success: true, data: populated });

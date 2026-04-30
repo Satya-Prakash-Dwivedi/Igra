@@ -11,6 +11,7 @@ import * as auditService from './auditService.js';
 import { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.js';
 import { generateOrderNumber } from '../utils/generateOrderNumber.js';
 import * as uploadService from './uploadService.js';
+import * as emailService from './emailService.js';
 
 // ─── Create Draft Order ───────────────────────────────────────
 export async function createOrder(userId: string, idempotencyKey: string, title?: string) {
@@ -175,7 +176,18 @@ export async function submitOrder(orderId: string, userId: string, idempotencyKe
     { status: OrderItemStatus.READY }
   );
 
+
   await auditService.appendOrderEvent(orderId, 'SUBMITTED', { totalCredits }, userId);
+
+  // Trigger Email Notifications (Client & Admin)
+  const fullUser = await User.findById(userId).select('name email').lean();
+  if (fullUser) {
+    emailService.sendOrderPlacementEmails(order, fullUser).catch(err => {
+       // We catch to avoid failing the order if email fails
+       console.error('Failed to send order emails:', err);
+    });
+  }
+
   return order;
 }
 

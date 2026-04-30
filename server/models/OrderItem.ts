@@ -66,6 +66,7 @@ export interface IOrderItem extends Document {
   allowedRevisions: number;
   usedRevisions: number;
   dependsOnItemIds: Types.ObjectId[];
+  deliveryLinks: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -138,6 +139,10 @@ const orderItemSchema = new Schema<IOrderItem>(
     dependsOnItemIds: [
       { type: Schema.Types.ObjectId, ref: 'OrderItem' },
     ],
+    deliveryLinks: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true }
 );

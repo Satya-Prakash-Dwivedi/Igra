@@ -24,14 +24,32 @@ function getPayPalClient() {
 export async function createPurchase(
   userId: string,
   packId: string,
-  idempotencyKey: string
+  idempotencyKey: string,
+  amountDollars?: number
 ) {
   // Idempotency
   const existing = await Payment.findOne({ idempotencyKey });
   if (existing) return existing;
 
-  const pack = CREDIT_PACKS.find(p => p.id === packId);
-  if (!pack) throw new Error(`Unknown credit pack: ${packId}`);
+  let amountCents: number;
+  let creditsPurchased: number;
+  let packName: string;
+
+  if (packId === 'custom') {
+    if (!amountDollars || amountDollars < 5) {
+      throw new Error('Minimum custom purchase is $5');
+    }
+    amountCents = Math.round(amountDollars * 100);
+    // Custom testing rate: 7 credits per dollar ($5 = 35 credits)
+    creditsPurchased = Math.floor(amountDollars * 7);
+    packName = 'Custom';
+  } else {
+    const pack = CREDIT_PACKS.find(p => p.id === packId);
+    if (!pack) throw new Error(`Unknown credit pack: ${packId}`);
+    amountCents = pack.priceCents;
+    creditsPurchased = pack.credits;
+    packName = pack.name;
+  }
 
   const paypalClient = getPayPalClient();
   const request = new paypal.orders.OrdersCreateRequest();
@@ -40,8 +58,8 @@ export async function createPurchase(
     intent: 'CAPTURE',
     purchase_units: [{
       reference_id: packId,
-      amount: { currency_code: 'USD', value: (pack.priceCents / 100).toFixed(2) },
-      description: `${pack.name} Credit Pack`,
+      amount: { currency_code: 'USD', value: (amountCents / 100).toFixed(2) },
+      description: `${packName} Credit Pack`,
     }],
     application_context: {
       return_url: `${process.env.CLIENT_URL}/credits?paypalFlow=true`,
@@ -58,10 +76,10 @@ export async function createPurchase(
     userId,
     provider: 'paypal',
     paypalOrderId,
-    amountCents: pack.priceCents,
+    amountCents,
     currency: 'USD',
-    creditsPurchased: pack.credits,
-    packId: pack.id,
+    creditsPurchased,
+    packId,
     status: PaymentStatus.CREATED,
     idempotencyKey,
   });
@@ -127,7 +145,7 @@ export async function capturePurchase(paymentIdOrPaypalOrderId: string, userId: 
       paymentId: payment._id,
       invoiceNumber: generateInvoiceNumber(),
       lineItems: [{
-        description: `${pack?.name || payment.packId} Credit Pack — ${payment.creditsPurchased} credits`,
+        description: `${pack?.name || 'Custom'} Credit Pack — ${payment.creditsPurchased} credits`,
         quantity: 1,
         unitPriceCents: payment.amountCents,
         totalCents: payment.amountCents,

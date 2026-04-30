@@ -11,11 +11,12 @@ export const getCreditPacks = asyncHandler(async (req: AuthRequest, res: Respons
 
 // ─── Create Purchase ──────────────────────────────────────────
 export const createPurchase = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { packId } = req.body;
+  const { packId, amountDollars } = req.body;
   const result = await billingService.createPurchase(
     req.user!._id.toString(),
     packId,
-    (req as any).idempotencyKey as string
+    (req as any).idempotencyKey as string,
+    amountDollars
   );
   res.status(201).json({ success: true, data: result });
 });

@@ -83,3 +83,24 @@ export const requestRevision = asyncHandler(async (req: AuthRequest, res: Respon
   const item = await orderService.requestRevision(iid, req.user!._id.toString(), req.body.notes);
   res.json({ success: true, data: item });
 });
+
+// ─── Deliver Order (Admin) ────────────────────────────────────
+export const deliverOrder = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const id = req.params.id as string;
+  const order = await orderService.deliverOrder(id, req.user!._id.toString());
+  res.json({ success: true, data: order });
+});
+
+// ─── Complete Review (User) ───────────────────────────────────
+export const completeReview = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const id = req.params.id as string;
+  const order = await orderService.completeReview(id, req.user!._id.toString());
+  res.json({ success: true, data: order });
+});
+
+// ─── Finalize Order (Admin) ───────────────────────────────────
+export const finalizeOrder = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const id = req.params.id as string;
+  const order = await orderService.finalizeOrder(id, req.user!._id.toString());
+  res.json({ success: true, data: order });
+});

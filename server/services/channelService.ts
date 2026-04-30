@@ -1,12 +1,26 @@
 import Channel from '../models/Channel.js';
 import type { CreateChannelInput, UpdateChannelInput } from '../validators/channelValidator.js';
+import { normalizeAssetUrl } from './uploadService.js';
 
 /**
  * List all channels belonging to a specific user.
  * Always scoped to userId — never returns another user's channels.
  */
 export const listChannels = async (userId: string) => {
-    return Channel.find({ userId }).lean().sort({ createdAt: -1 });
+    const channels = await Channel.find({ userId }).sort({ createdAt: -1 });
+    
+    // Normalize logos and save back to DB if needed
+    for (const channel of channels) {
+        if (channel.logo) {
+            const normalized = await normalizeAssetUrl(channel.logo);
+            if (normalized !== channel.logo) {
+                channel.logo = normalized;
+                await channel.save();
+            }
+        }
+    }
+    
+    return channels;
 };
 
 /**
@@ -22,10 +36,19 @@ export const createChannel = async (userId: string, data: CreateChannelInput) =>
  * If the channel doesn't belong to this user, the result is null → 404.
  */
 export const getChannel = async (channelId: string, userId: string) => {
-    const channel = await Channel.findOne({ _id: channelId, userId }).lean();
+    const channel = await Channel.findOne({ _id: channelId, userId });
     if (!channel) {
         throw Object.assign(new Error('Channel not found'), { statusCode: 404 });
     }
+
+    if (channel.logo) {
+        const normalized = await normalizeAssetUrl(channel.logo);
+        if (normalized !== channel.logo) {
+            channel.logo = normalized;
+            await channel.save();
+        }
+    }
+
     return channel;
 };
 
@@ -38,11 +61,16 @@ export const updateChannel = async (
     userId: string,
     data: UpdateChannelInput
 ) => {
+    // Normalize logo in data before saving
+    if (data.logo) {
+        data.logo = await normalizeAssetUrl(data.logo);
+    }
+
     const channel = await Channel.findOneAndUpdate(
-        { _id: channelId, userId },   // ownership check baked into the query
+        { _id: channelId, userId },
         { $set: data },
         { returnDocument: 'after', runValidators: true }
-    ).lean();
+    );
 
     if (!channel) {
         throw Object.assign(new Error('Channel not found'), { statusCode: 404 });

@@ -124,10 +124,6 @@ export const assignStaff = async (userId: string) => {
         throw new Error('User not found');
     }
     
-    if (user.role === 'admin') {
-        throw new Error('Cannot change an admin\'s role');
-    }
-    
     user.role = 'staff';
     return await user.save();
 };
@@ -139,10 +135,6 @@ export const removeStaff = async (userId: string) => {
     const user = await User.findById(userId);
     if (!user) {
         throw new Error('User not found');
-    }
-    
-    if (user.role === 'admin') {
-        throw new Error('Cannot change an admin\'s role');
     }
     
     user.role = 'user';

@@ -277,7 +277,7 @@ export async function finalizeUpload(sessionId: string) {
     assetVersionId: assetVersion?._id?.toString(),
   });
 
-  const url = await getAssetDownloadUrl(assetVersion.assetId.toString());
+  const url = await getAssetPermanentUrl(assetVersion.assetId.toString());
 
   return { assetVersion, url };
 }
@@ -432,7 +432,38 @@ export async function saveLocalPart(sessionId: string, partNumber: number, data:
 }
 
 /**
+ * Normalizes a URL. If it's a signed S3 URL from our bucket,
+ * converts it to a permanent proxy URL.
+ */
+export async function normalizeAssetUrl(url: string | undefined): Promise<string | undefined> {
+    if (!url) return url;
+    
+    // If it's already a proxy URL or relative path, leave it
+    if (url.startsWith('/api/v1/uploads/view/')) return url;
+    if (!url.startsWith('http')) return url;
+
+    // Check if it's an S3 URL from our bucket
+    // Format: https://BUCKET.s3.REGION.amazonaws.com/uploads/USER_ID/ASSET_ID/FILENAME
+    const s3Match = url.match(/amazonaws\.com\/uploads\/[a-f0-9]{24}\/([a-f0-9]{24})\//);
+    if (s3Match && s3Match[1]) {
+        const assetId = s3Match[1];
+        return `/api/v1/uploads/view/${assetId}`;
+    }
+
+    return url;
+}
+
+/**
+ * Generates a PERMANENT proxy URL that redirects to the current storage location.
+ * Use this for storing in database or long-lived links.
+ */
+export async function getAssetPermanentUrl(assetId: string): Promise<string> {
+  return `/api/v1/uploads/view/${assetId}`;
+}
+
+/**
  * Generates a temporary URL for viewing/downloading an asset.
+ * Returns a signed S3 URL or a local file path.
  */
 export async function getAssetDownloadUrl(assetId: string): Promise<string> {
   const asset = await Asset.findById(assetId);
@@ -442,7 +473,7 @@ export async function getAssetDownloadUrl(assetId: string): Promise<string> {
   if (!version) throw new Error('Asset version not found');
 
   if (isS3Disabled()) {
-    return `/api/v1/uploads/view/${assetId}`;
+    return version.storageKey; // Return the local storage path
   }
 
   const s3Client = (await import('../config/s3.js')).default;

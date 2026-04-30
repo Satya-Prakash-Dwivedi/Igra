@@ -11,6 +11,7 @@ import * as auditService from './auditService.js';
 import { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.js';
 import { generateOrderNumber } from '../utils/generateOrderNumber.js';
 import * as uploadService from './uploadService.js';
+import * as emailService from './emailService.js';
 
 // ─── Create Draft Order ───────────────────────────────────────
 export async function createOrder(userId: string, idempotencyKey: string, title?: string) {
@@ -175,7 +176,18 @@ export async function submitOrder(orderId: string, userId: string, idempotencyKe
     { status: OrderItemStatus.READY }
   );
 
+
   await auditService.appendOrderEvent(orderId, 'SUBMITTED', { totalCredits }, userId);
+
+  // Trigger Email Notifications (Client & Admin)
+  const fullUser = await User.findById(userId).select('name email').lean();
+  if (fullUser) {
+    emailService.sendOrderPlacementEmails(order, fullUser).catch(err => {
+       // We catch to avoid failing the order if email fails
+       console.error('Failed to send order emails:', err);
+    });
+  }
+
   return order;
 }
 
@@ -198,7 +210,7 @@ export async function reviewOrder(
     await order.save();
     await auditService.appendOrderEvent(orderId, 'REJECTED', {}, adminId);
     // Refund credits
-    const wallet = await creditService.getOrCreateWallet(order.userId.toString());
+    const wallet = await creditService.getOrCreateWallet(order.userId);
     await creditService.appendLedgerEntry({
       walletId: wallet._id,
       delta: order.totalCreditsCaptured,
@@ -221,6 +233,50 @@ export async function assignOrder(orderId: string, adminId: string, staffId: str
   order.assignedTo = new mongoose.Types.ObjectId(staffId);
   await order.save();
   await auditService.appendOrderEvent(orderId, 'ASSIGNED', { staffId }, adminId);
+  return order;
+}
+
+/**
+ * Admin: Mark order as delivered (Awaiting Approval).
+ */
+export async function deliverOrder(orderId: string, adminId: string) {
+  const order = await Order.findById(orderId);
+  if (!order) throw new Error('Order not found');
+  
+  order.status = OrderStatus.AWAITING_APPROVAL;
+  await order.save();
+  await auditService.appendOrderEvent(orderId, 'ORDER_DELIVERED', {}, adminId);
+  return order;
+}
+
+/**
+ * User: Mark review as complete (Finalizing).
+ */
+export async function completeReview(orderId: string, userId: string) {
+  const order = await Order.findOne({ _id: orderId, userId });
+  if (!order) throw new Error('Order not found or not owned by user');
+  
+  if (order.status !== OrderStatus.AWAITING_APPROVAL) {
+    throw new Error('Order is not in review state');
+  }
+
+  order.status = OrderStatus.FINALIZING;
+  await order.save();
+  await auditService.appendOrderEvent(orderId, 'REVIEW_COMPLETED', {}, userId);
+  return order;
+}
+
+/**
+ * Admin: Finalize and complete order.
+ */
+export async function finalizeOrder(orderId: string, adminId: string) {
+  const order = await Order.findById(orderId);
+  if (!order) throw new Error('Order not found');
+
+  order.status = OrderStatus.COMPLETED;
+  order.completedAt = new Date();
+  await order.save();
+  await auditService.appendOrderEvent(orderId, 'ORDER_COMPLETED', {}, adminId);
   return order;
 }
 
@@ -387,8 +443,8 @@ export async function getOrderDetail(orderId: string) {
       const asset = al.assetId;
       if (!asset) return null;
 
-      // Generate a temporary view/download URL
-      const url = await uploadService.getAssetDownloadUrl(asset._id.toString());
+      // Generate a permanent proxy URL (prevents S3 signed URL expiry issues)
+      const url = await uploadService.getAssetPermanentUrl(asset._id.toString());
 
       return {
         ...asset,

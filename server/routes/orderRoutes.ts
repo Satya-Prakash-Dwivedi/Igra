@@ -22,4 +22,9 @@ router.post('/:oid/items/:iid/approve',  orderCtrl.approveItem);
 router.post('/:oid/items/:iid/revision', orderCtrl.requestRevision);
 router.post('/:oid/items/:iid/assets',   orderCtrl.addAssetToItem);
 
+// ─── Workflow Actions ────────────────────────────────────────
+router.post('/:id/deliver',             authorize('admin', 'staff'), orderCtrl.deliverOrder);
+router.post('/:id/complete-review',     orderCtrl.completeReview);
+router.post('/:id/finalize',            authorize('admin', 'staff'), orderCtrl.finalizeOrder);
+
 export default router;

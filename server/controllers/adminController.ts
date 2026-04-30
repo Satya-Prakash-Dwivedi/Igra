@@ -103,13 +103,54 @@ export const addAssetToItem = asyncHandler(async (req: AuthRequest, res: Respons
     res.json({ success: true, data: { item } });
 });
 
-// ─── Remove Asset From Item ───────────────────────────────────
 export const removeAssetFromItem = asyncHandler(async (req: AuthRequest, res: Response) => {
     const oid = req.params.oid as string;
     const iid = req.params.iid as string;
     const assetId = req.params.assetId as string;
     const result = await orderService.removeAssetFromItem(oid, iid, req.user!._id.toString(), assetId);
     res.json({ success: true, data: result });
+});
+
+// ─── Delivery Links ───────────────────────────────────────────
+export const addDeliveryLink = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const iid = req.params.iid as string;
+    const { link } = req.body;
+    if (!link) throw new Error('Link is required');
+    
+    const OrderItem = (await import('../models/OrderItem.js')).default;
+    const item = await OrderItem.findById(iid);
+    if (!item) {
+        res.status(404);
+        throw new Error('Item not found');
+    }
+
+    // Push link to deliveryLinks array
+    await OrderItem.findByIdAndUpdate(iid, { $addToSet: { deliveryLinks: link } });
+    
+    const updated = await orderService.getOrderDetail(item.orderId.toString());
+    const updatedItem = updated.items.find(i => i._id.toString() === iid);
+
+    res.json({ success: true, data: { item: updatedItem } });
+});
+
+export const removeDeliveryLink = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const iid = req.params.iid as string;
+    const { link } = req.body;
+    if (!link) throw new Error('Link is required');
+    
+    const OrderItem = (await import('../models/OrderItem.js')).default;
+    const item = await OrderItem.findById(iid);
+    if (!item) {
+        res.status(404);
+        throw new Error('Item not found');
+    }
+
+    await OrderItem.findByIdAndUpdate(iid, { $pull: { deliveryLinks: link } });
+    
+    const updated = await orderService.getOrderDetail(item.orderId.toString());
+    const updatedItem = updated.items.find(i => i._id.toString() === iid);
+
+    res.json({ success: true, data: { item: updatedItem } });
 });
 
 // ─── Refund Failed Item ───────────────────────────────────────

@@ -37,6 +37,7 @@ logger.info('config.paypal_env_check', {
 
 
 const app = express();
+app.set('trust proxy', true); // More robust for nested proxies/load balancers
 const httpServer = createServer(app);
 
 // ─── Socket.IO for Real-Time Chat ─────────────────────────────

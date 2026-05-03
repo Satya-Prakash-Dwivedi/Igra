@@ -18,6 +18,7 @@ export interface IUploadSession extends Document {
   partSizeBytes: number;
   totalParts: number;
   partsUploaded: IUploadedPart[];
+  storageProvider: 's3' | 'local';
   status: UploadSessionStatus;
   expiresAt: Date;
   createdAt: Date;
@@ -55,6 +56,12 @@ const uploadSessionSchema = new Schema<IUploadSession>(
     partsUploaded: {
       type: [uploadedPartSchema],
       default: [],
+    },
+    storageProvider: {
+      type: String,
+      required: true,
+      enum: ['s3', 'local'],
+      default: 'local',
     },
     status: {
       type: String,

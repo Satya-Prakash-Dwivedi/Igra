@@ -34,6 +34,7 @@ function isS3Disabled() {
   if (process.env.STORAGE_PROVIDER === 'local') return true;
   return !process.env.AWS_ACCESS_KEY_ID || 
          process.env.AWS_ACCESS_KEY_ID === 'DUMMY_ACCESS_KEY_ID' ||
+         process.env.AWS_SECRET_ACCESS_KEY === 'DUMMY_SECRET_ACCESS_KEY' ||
          process.env.AWS_ACCESS_KEY_ID === process.env.AWS_SECRET_ACCESS_KEY; // Detect placeholder/malformed creds
 }
 
@@ -56,20 +57,19 @@ export async function startUpload(
 
   const storageKey = `uploads/${userId}/${asset._id}/${Date.now()}-${fileName}`;
   const totalParts = Math.ceil(fileSize / DEFAULT_PART_SIZE);
+  let s3Disabled = isS3Disabled();
 
   const assetVersion = await AssetVersion.create({
     assetId: asset._id,
     storageKey,
     sizeBytes: fileSize,
     status: AssetVersionStatus.UPLOADING,
+    storageProvider: s3Disabled ? 'local' : 's3',
     versionNumber: 1,
   });
 
   asset.latestVersionId = assetVersion._id;
   await asset.save();
-
-  // ─── 2. Provider Initialization ────────────────────────────
-  let s3Disabled = isS3Disabled();
   let providerUploadId = `local-${Date.now()}`;
   const presignedUrls: string[] = [];
   const isDirect = fileSize < DIRECT_UPLOAD_THRESHOLD;
@@ -115,6 +115,8 @@ export async function startUpload(
     } catch (err) {
       logger.error('upload.s3_init_failed_falling_back_to_local', { error: serializeError(err) });
       s3Disabled = true; // Fallback to local storage
+      assetVersion.storageProvider = 'local';
+      await assetVersion.save();
       providerUploadId = `local-${Date.now()}`;
       presignedUrls.length = 0; // Clear any partial URLs
     }
@@ -134,6 +136,7 @@ export async function startUpload(
     providerUploadId,
     partSizeBytes: isDirect ? fileSize : DEFAULT_PART_SIZE,
     totalParts: isDirect ? 1 : totalParts,
+    storageProvider: s3Disabled ? 'local' : 's3',
     status: UploadSessionStatus.ACTIVE,
     expiresAt: new Date(Date.now() + UPLOAD_EXPIRY_HOURS * 60 * 60 * 1000),
   });
@@ -205,7 +208,9 @@ export async function finalizeUpload(sessionId: string) {
   const assetVersion = await AssetVersion.findById(session.assetVersionId);
   if (!assetVersion) throw new Error('AssetVersion not found');
 
-  if (!isS3Disabled()) {
+  const useS3 = session.storageProvider === 's3';
+
+  if (useS3) {
     // ─── 1. S3 Finalization ───────────────────────────────────
     // ONLY call CompleteMultipartUpload if we actually had a multipart session
     if (session.providerUploadId !== 'direct-put') {
@@ -324,12 +329,12 @@ export async function resumeUploadSession(sessionId: string) {
     return { success: true };
   }
 
-  const s3Disabled = isS3Disabled();
+  const useS3 = session.storageProvider === 's3';
   const baseUrl = process.env.VITE_API_URL || `http://localhost:${process.env.PORT || 5000}`;
 
   for (let i = 1; i <= totalParts; i++) {
     if (!uploadedPartNumbers.includes(i)) {
-      if (!s3Disabled) {
+      if (useS3) {
         const partCmd = new UploadPartCommand({
           Bucket: S3_BUCKET,
           Key: storageKey,
@@ -366,11 +371,14 @@ export async function createNewVersion(assetId: string, userId: string, fileName
 
   const storageKey = `uploads/${userId}/${assetId}/v${newVersionNumber}-${fileName}`;
 
+  let s3Disabled = isS3Disabled();
+
   const assetVersion = await AssetVersion.create({
     assetId,
     storageKey,
     sizeBytes: fileSize,
     status: AssetVersionStatus.UPLOADING,
+    storageProvider: s3Disabled ? 'local' : 's3',
     versionNumber: newVersionNumber,
   });
 
@@ -379,22 +387,82 @@ export async function createNewVersion(assetId: string, userId: string, fileName
   asset.sizeBytes = fileSize;
   await asset.save();
 
-  // Start a new upload session for this version
-  const totalParts = Math.ceil(fileSize / DEFAULT_PART_SIZE);
+  // ─── 2. Provider Initialization ────────────────────────────
+  let providerUploadId = `local-${Date.now()}`;
+  const presignedUrls: string[] = [];
+  const isDirect = fileSize < DIRECT_UPLOAD_THRESHOLD;
+
+  if (!s3Disabled) {
+    try {
+      if (isDirect) {
+        const cmd = new PutObjectCommand({
+          Bucket: S3_BUCKET,
+          Key: storageKey,
+          ContentType: mimeType,
+        });
+        const url = await getPresignedUrl(s3Client, cmd, { expiresIn: 3600 });
+        presignedUrls.push(url);
+        providerUploadId = 'direct-put';
+      } else {
+        const cmd = new CreateMultipartUploadCommand({
+          Bucket: S3_BUCKET,
+          Key: storageKey,
+          ContentType: mimeType,
+        });
+        const result = await s3Client.send(cmd);
+        providerUploadId = result.UploadId!;
+
+        for (let i = 1; i <= totalParts; i++) {
+          const partCmd = new UploadPartCommand({
+            Bucket: S3_BUCKET,
+            Key: storageKey,
+            PartNumber: i,
+            UploadId: providerUploadId,
+          });
+          const url = await getPresignedUrl(s3Client, partCmd, { expiresIn: 3600 });
+          presignedUrls.push(url);
+        }
+      }
+    } catch (err) {
+      logger.error('upload.s3_init_failed_falling_back_to_local', { error: serializeError(err) });
+      s3Disabled = true;
+      assetVersion.storageProvider = 'local';
+      await assetVersion.save();
+      providerUploadId = `local-${Date.now()}`;
+      presignedUrls.length = 0;
+    }
+  }
+
+  if (s3Disabled) {
+    const baseUrl = process.env.VITE_API_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const partCount = isDirect ? 1 : totalParts;
+    for (let i = 1; i <= partCount; i++) {
+       presignedUrls.push(`${baseUrl}/api/v1/uploads/local-part/PENDING/${i}?u=${providerUploadId}`);
+    }
+  }
 
   const session = await UploadSession.create({
     assetVersionId: assetVersion._id,
-    providerUploadId: `stub-${Date.now()}`,
-    partSizeBytes: DEFAULT_PART_SIZE,
-    totalParts,
+    providerUploadId,
+    partSizeBytes: isDirect ? fileSize : DEFAULT_PART_SIZE,
+    totalParts: isDirect ? 1 : totalParts,
+    storageProvider: s3Disabled ? 'local' : 's3',
     status: UploadSessionStatus.ACTIVE,
     expiresAt: new Date(Date.now() + UPLOAD_EXPIRY_HOURS * 60 * 60 * 1000),
   });
+
+  if (s3Disabled) {
+    for (let i = 0; i < presignedUrls.length; i++) {
+      presignedUrls[i] = presignedUrls[i].replace('PENDING', session._id.toString());
+    }
+  }
 
   return {
     uploadSessionId: session._id,
     assetVersionId: assetVersion._id,
     versionNumber: newVersionNumber,
+    presignedUrls,
+    isDirect,
   };
 }
 
@@ -472,7 +540,7 @@ export async function getAssetDownloadUrl(assetId: string): Promise<string> {
   const version = await AssetVersion.findById(asset.latestVersionId);
   if (!version) throw new Error('Asset version not found');
 
-  if (isS3Disabled()) {
+  if (version.storageProvider === 'local') {
     return version.storageKey; // Return the local storage path
   }
 
@@ -494,7 +562,7 @@ export async function deleteAsset(assetId: string): Promise<void> {
 
   const version = await AssetVersion.findById(asset.latestVersionId);
   if (version) {
-    if (isS3Disabled()) {
+    if (version.storageProvider === 'local') {
       const filePath = path.join(process.cwd(), version.storageKey);
       try {
         await fs.unlink(filePath);

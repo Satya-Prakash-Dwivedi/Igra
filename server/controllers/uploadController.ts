@@ -72,6 +72,9 @@ export const handleLocalPartUpload = asyncHandler(async (req: AuthRequest, res: 
   await uploadService.validateLocalPartUpload(sessionId as string, uploadId);
 
   await uploadService.saveLocalPart(sessionId as string, parseInt(partNumber as string), data);
+  
+  // Return an ETag for the part (frontend expects it)
+  res.setHeader('ETag', `local-part-${partNumber}`);
   res.json({ success: true });
 });
 

@@ -131,7 +131,7 @@ app.use(cors({
     'Accept', 
     'Origin'
   ],
-  exposedHeaders: ['set-cookie']
+  exposedHeaders: ['set-cookie', 'ETag', 'etag']
 }));
 app.use(cookieParser());
 app.use(requestLogger);

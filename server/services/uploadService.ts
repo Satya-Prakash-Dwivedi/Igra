@@ -100,7 +100,6 @@ export async function startUpload(
         const cmd = new CreateMultipartUploadCommand({
           Bucket: S3_BUCKET,
           Key: storageKey,
-          ContentType: mimeType,
         });
         const result = await s3Client.send(cmd);
         providerUploadId = result.UploadId!;

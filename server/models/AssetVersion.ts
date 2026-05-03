@@ -11,6 +11,7 @@ export interface IAssetVersion extends Document {
   storageKey: string;
   sizeBytes: number;
   status: AssetVersionStatus;
+  storageProvider: 's3' | 'local';
   versionNumber: number;
   createdAt: Date;
 }
@@ -36,6 +37,12 @@ const assetVersionSchema = new Schema<IAssetVersion>(
       required: true,
       enum: Object.values(AssetVersionStatus),
       default: AssetVersionStatus.UPLOADING,
+    },
+    storageProvider: {
+      type: String,
+      required: true,
+      enum: ['s3', 'local'],
+      default: 'local',
     },
     versionNumber: {
       type: Number,

@@ -37,6 +37,7 @@ logger.info('config.paypal_env_check', {
 
 
 const app = express();
+app.set('trust proxy', true); // More robust for nested proxies/load balancers
 const httpServer = createServer(app);
 
 // ─── Socket.IO for Real-Time Chat ─────────────────────────────
@@ -146,9 +147,9 @@ app.use(express.json({ limit: '10kb' }));
 // ─── 2. Rate Limiting ────────────────────────────────────────
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'development' ? 10000 : 100, // much higher limit for dev
+  max: process.env.NODE_ENV === 'development' ? 10000 : 3000, // increased to 3000 for production
   message: 'Too many requests from this IP, please try again after 15 minutes',
-  skip: (req) => process.env.NODE_ENV === 'development', // skip limiting entirely in dev
+  skip: (req) => process.env.NODE_ENV === 'development',
 });
 app.use('/api', limiter);
 

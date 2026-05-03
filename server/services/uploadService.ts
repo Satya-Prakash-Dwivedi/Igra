@@ -388,6 +388,7 @@ export async function createNewVersion(assetId: string, userId: string, fileName
   // ─── 2. Provider Initialization ────────────────────────────
   let providerUploadId = `local-${Date.now()}`;
   const presignedUrls: string[] = [];
+  const totalParts = Math.ceil(fileSize / DEFAULT_PART_SIZE);
   const isDirect = fileSize < DIRECT_UPLOAD_THRESHOLD;
 
   if (!s3Disabled) {

@@ -82,9 +82,17 @@ export async function startUpload(
         const cmd = new PutObjectCommand({
           Bucket: S3_BUCKET,
           Key: storageKey,
-          ChecksumAlgorithm: undefined,
+          ContentType: mimeType,
         });
         const url = await getPresignedUrl(s3Client, cmd, { expiresIn: 3600 });
+        
+        logger.info('upload.s3_presigned_url_generated', { 
+          key: storageKey, 
+          contentType: mimeType,
+          isDirect: true,
+          expiresIn: 3600
+        });
+        
         presignedUrls.push(url);
         providerUploadId = 'direct-put'; // Skip Multipart ID
       } else {
@@ -104,7 +112,6 @@ export async function startUpload(
             Key: storageKey,
             PartNumber: i,
             UploadId: providerUploadId,
-            ChecksumAlgorithm: undefined,
           });
           const url = await getPresignedUrl(s3Client, partCmd, { expiresIn: 3600 });
           presignedUrls.push(url);
@@ -338,7 +345,6 @@ export async function resumeUploadSession(sessionId: string) {
           Key: storageKey,
           PartNumber: i,
           UploadId: providerUploadId,
-          ChecksumAlgorithm: undefined,
         });
         presignedUrls[i] = await getPresignedUrl(s3Client, partCmd, { expiresIn: 3600 });
       } else {

@@ -82,7 +82,6 @@ export async function startUpload(
         const cmd = new PutObjectCommand({
           Bucket: S3_BUCKET,
           Key: storageKey,
-          ContentType: mimeType,
           ChecksumAlgorithm: undefined,
         });
         const url = await getPresignedUrl(s3Client, cmd, { expiresIn: 3600 });
@@ -93,7 +92,6 @@ export async function startUpload(
         const cmd = new CreateMultipartUploadCommand({
           Bucket: S3_BUCKET,
           Key: storageKey,
-          ContentType: mimeType,
         });
         const result = await s3Client.send(cmd);
         providerUploadId = result.UploadId!;

@@ -5,7 +5,8 @@ import winston from 'winston'
 
 export type LogMetadata = Record<string, unknown>
 
-const logDirectory = path.resolve(process.cwd(), 'logs')
+const serviceName = process.env.SERVICE_NAME || process.env.CONTAINER_NAME || 'igra-api'
+const logDirectory = path.resolve(process.cwd(), 'Logs')
 const environment = process.env.NODE_ENV ?? 'development'
 const isDevelopment = environment === 'development'
 
@@ -96,7 +97,7 @@ const jsonFormat = winston.format.combine(
 const logger = winston.createLogger({
   level: isDevelopment ? 'debug' : 'info',
   defaultMeta: {
-    service: 'igra-api',
+    service: serviceName,
     environment,
   },
   transports: [
@@ -104,12 +105,12 @@ const logger = winston.createLogger({
       format: isDevelopment ? devConsoleFormat : jsonFormat,
     }),
     new winston.transports.File({
-      filename: path.join(logDirectory, 'error.log'),
+      filename: path.join(logDirectory, `${serviceName}-error.log`),
       level: 'error',
       format: jsonFormat,
     }),
     new winston.transports.File({
-      filename: path.join(logDirectory, 'application.log'),
+      filename: path.join(logDirectory, `${serviceName}.log`),
       format: jsonFormat,
     }),
   ],

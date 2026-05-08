@@ -209,7 +209,9 @@ export async function listInvoices(userId: string, page = 1, limit = 20) {
  * Get invoice detail.
  */
 export async function getInvoiceDetail(invoiceId: string, userId: string) {
-  const invoice = await Invoice.findOne({ _id: invoiceId, userId }).lean();
+  const invoice = await Invoice.findOne({ _id: invoiceId, userId })
+    .populate('paymentId', 'paypalOrderId paypalCaptureId')
+    .lean();
   if (!invoice) throw new Error('Invoice not found');
   return invoice;
 }

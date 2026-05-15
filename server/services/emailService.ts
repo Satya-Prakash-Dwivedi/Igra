@@ -1,5 +1,6 @@
 import logger from '../utils/logger.js';
 import dotenv from 'dotenv';
+import User from '../models/User.js';
 
 dotenv.config({ quiet: true });
 
@@ -112,7 +113,14 @@ export const sendPasswordResetEmail = async (email: string, token: string) => {
 export const sendOrderPlacementEmails = async (order: any, user: any) => {
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const orderUrl = `${clientUrl}/orders/${order._id}`;
-    const adminEmail = process.env.DEFAULT_FROM_EMAIL || '';
+    const defaultAdminEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+    // Fetch all admins from DB
+    const admins = await User.find({ role: 'admin' }).select('email').lean();
+    const adminEmails = Array.from(new Set([
+        defaultAdminEmail,
+        ...admins.map(a => a.email)
+    ])).filter(Boolean);
 
     // 1. Client Confirmation
     const clientHtml = `
@@ -157,19 +165,19 @@ export const sendOrderPlacementEmails = async (order: any, user: any) => {
             })
         });
 
-        // Send to Admin
+        // Send to Admin(s)
         await fetch('https://api.brevo.com/v3/smtp/email', {
             method: 'POST',
             headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
             body: JSON.stringify({
                 sender: { email: senderEmail, name: "Igra Studios" },
-                to: [{ email: adminEmail }],
+                to: adminEmails.map(email => ({ email })),
                 subject: `🚨 New Order Alert - #${order.orderNumber}`,
                 htmlContent: adminHtml
             })
         });
 
-        logger.info(`Order placement emails sent for #${order.orderNumber}. Client: ${user.email}, Admin: ${adminEmail}`);
+        logger.info(`Order placement emails sent for #${order.orderNumber}. Client: ${user.email}, Admins: ${adminEmails.join(', ')}`);
     } catch (error) {
         logger.error(`Error sending order placement emails:`, error);
     }

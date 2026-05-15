@@ -169,7 +169,7 @@ export const sendOrderPlacementEmails = async (order: any, user: any) => {
             })
         });
 
-        logger.info(`Order placement emails sent for #${order.orderNumber}`);
+        logger.info(`Order placement emails sent for #${order.orderNumber}. Client: ${user.email}, Admin: ${adminEmail}`);
     } catch (error) {
         logger.error(`Error sending order placement emails:`, error);
     }

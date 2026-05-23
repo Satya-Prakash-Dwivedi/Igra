@@ -40,8 +40,8 @@ export async function createPurchase(
       throw new Error('Minimum custom purchase is $5');
     }
     amountCents = Math.round(amountDollars * 100);
-    // Custom testing rate: 7 credits per dollar ($5 = 35 credits)
-    creditsPurchased = Math.floor(amountDollars * 7);
+    // 1 Dollar = 1 Credit
+    creditsPurchased = Math.floor(amountDollars);
     packName = 'Custom';
   } else {
     const pack = CREDIT_PACKS.find(p => p.id === packId);

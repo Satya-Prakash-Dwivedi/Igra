@@ -12,33 +12,34 @@ export function computePricingSnapshot(
   const modifiers: { label: string; delta: number }[] = [];
 
   if (kind === OrderItemKind.VIDEO_EDIT) {
-    base = (params.rawFootageLength || 0) * 20;
-    
-    if (params.hasRawFootage === false) {
-      modifiers.push({ label: 'No raw footage provided', delta: 100 });
+    const tier = params.packageTier || 'BASIC';
+    if (tier === 'BASIC') {
+      base = 70;
+    } else if (tier === 'STANDARD') {
+      base = 105;
+    } else if (tier === 'PREMIUM') {
+      base = 130;
+    } else {
+      base = 70;
     }
-    if (params.addBroll === true) {
-      modifiers.push({ label: 'Additional B-roll footage', delta: 100 });
+
+    if (params.deliverySpeed === 'EXPRESS') {
+      let delta = 20;
+      let days = 2;
+      if (tier === 'STANDARD') {
+        delta = 30;
+        days = 3;
+      }
+      if (tier === 'PREMIUM') {
+        delta = 40;
+        days = 4;
+      }
+
+      modifiers.push({
+        label: `Expedite Delivery (${days}-day)`,
+        delta,
+      });
     }
-  }
-
-  if (kind === OrderItemKind.VOICEOVER) {
-    base = Math.max(50, (params.scriptLength || 0) * 10);
-  }
-
-  if (kind === OrderItemKind.SCRIPT) {
-    const words = params.wordCount || 0;
-    base = Math.ceil(words * 0.2);
-  }
-
-  if (kind === OrderItemKind.CONSULTATION) {
-    const mins = params.duration || 15;
-    const blocks = Math.ceil(mins / 15);
-    base = blocks * 100;
-  }
-
-  if (kind === OrderItemKind.FOOTAGE_REVIEW) {
-    base = Math.max(50, (params.footageLength || 0) * 10);
   }
 
   const totalCredits = base + modifiers.reduce((sum, m) => sum + m.delta, 0);

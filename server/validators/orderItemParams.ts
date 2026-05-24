@@ -11,19 +11,13 @@ const genericParams = z.object({
   notes: z.string().optional(),
 });
 
-const videoEditParams = z.object({
-  hasRawFootage: z.boolean().default(true),
-  outputRatio: z.enum(['16:9', '9:16', '1:1', 'Other']).default('16:9'),
-  rawFootageLength: z.number().min(1, 'Raw footage length must be at least 1 minute'),
-  desiredLength: z.number().min(1, 'Desired length must be at least 1 minute'),
-  addBroll: z.boolean().default(false),
-  tone: z.string().optional(),
+const videoEditParams = genericParams.extend({
+  packageTier: z.enum(['BASIC', 'STANDARD', 'PREMIUM']).default('BASIC'),
+  deliverySpeed: z.enum(['STANDARD', 'EXPRESS']).default('STANDARD'),
+  videoFormat: z.string().optional(),
+  videoLength: z.number().optional(),
+  style: z.string().optional(),
   pace: z.string().optional(),
-  uploadType: z.enum(['file', 'link']).optional(),
-  uploadLink: z.string().optional(),
-  externalLinks: z.array(z.string()).optional(),
-  assetIds: z.array(z.string()).optional(),
-  notes: z.string().optional(),
 });
 
 const thumbnailParams = genericParams.extend({

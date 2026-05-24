@@ -16,113 +16,46 @@ export interface ServiceDef {
 // Pricing and required inputs per service kind.
 export const SERVICE_CATALOG: Record<OrderItemKind, ServiceDef> = {
   [OrderItemKind.VIDEO_EDIT]: {
-    label: 'Video',
-    baseCredits: 0, // Computed dynamically (20 per min)
-    perMinuteCredits: 20,
+    label: 'Video Editing',
+    baseCredits: 70,
     defaultRevisions: 2,
-    requiredParams: ['rawFootageLength', 'desiredLength', 'outputRatio'],
-    description: 'Professional video editing',
-    pricingText: '20 credits per minute of raw footage',
+    requiredParams: ['packageTier', 'deliverySpeed'],
+    description: 'Professional video editing with tiered packages',
+    pricingText: 'From 70 credits',
   },
   [OrderItemKind.THUMBNAIL]: {
     label: 'Thumbnail Design',
-    baseCredits: 50,
+    baseCredits: 10,
     defaultRevisions: 3,
     requiredParams: ['style'],
     description: 'Eye-catching thumbnail design',
-    pricingText: '50 credits per thumbnail',
+    pricingText: '10 credits per thumbnail',
   },
   [OrderItemKind.INTRO]: {
     label: 'Custom Intro',
-    baseCredits: 100,
+    baseCredits: 20,
     defaultRevisions: 2,
     requiredParams: [],
     description: 'Custom animated intro for your channel',
-    pricingText: '100 credits',
-  },
-  [OrderItemKind.OUTRO]: {
-    label: 'Custom Outro',
-    baseCredits: 100,
-    defaultRevisions: 2,
-    requiredParams: [],
-    description: 'Custom animated outro for your channel',
-    pricingText: '100 credits',
-  },
-  [OrderItemKind.VOICEOVER]: {
-    label: 'AI Voiceover',
-    baseCredits: 50,
-    perMinuteCredits: 10,
-    defaultRevisions: 2,
-    requiredParams: ['scriptLength'],
-    description: 'AI-generated voiceover narration',
-    pricingText: '10 credits per minute (min. 50 credits)',
-  },
-  [OrderItemKind.SCRIPT]: {
-    label: 'Script Writing',
-    baseCredits: 100,
-    defaultRevisions: 2,
-    requiredParams: ['wordCount'],
-    description: 'Professional script writing',
-    pricingText: '100 credits per 500 words',
-  },
-  [OrderItemKind.SEO]: {
-    label: 'Video SEO',
-    baseCredits: 100,
-    defaultRevisions: 1,
-    requiredParams: ['videoUrl'],
-    description: 'SEO optimization for your video',
-    pricingText: '100 credits per video',
+    pricingText: '20 credits',
   },
   [OrderItemKind.CHANNEL_BANNER]: {
     label: 'Channel Banner',
-    baseCredits: 150,
+    baseCredits: 15,
     defaultRevisions: 2,
     requiredParams: [],
     description: 'Professional channel banner design',
-    pricingText: '150 credits',
-  },
-  [OrderItemKind.LOGO_DESIGN]: {
-    label: 'Logo Design',
-    baseCredits: 100,
-    defaultRevisions: 2,
-    requiredParams: [],
-    description: 'Professional logo design',
-    pricingText: '100 credits',
-  },
-  [OrderItemKind.IMAGE_RETOUCHING]: {
-    label: 'Image Retouching',
-    baseCredits: 100,
-    defaultRevisions: 2,
-    requiredParams: [],
-    description: 'Professional image retouching',
-    pricingText: '100 credits',
+    pricingText: '15 credits',
   },
   [OrderItemKind.CONSULTATION]: {
     label: 'Consultation Call',
-    baseCredits: 100,
+    baseCredits: 40,
     defaultRevisions: 0,
     requiredParams: [],
     description: '1-on-1 strategy call',
-    pricingText: '100 credits per 15 minutes',
+    pricingText: '40 credits per call',
   },
-  [OrderItemKind.FOOTAGE_REVIEW]: {
-    label: 'Footage Review',
-    baseCredits: 50,
-    perMinuteCredits: 10,
-    defaultRevisions: 0,
-    requiredParams: ['footageLength'],
-    description: 'Professional review of your raw footage',
-    pricingText: '10 credits per minute (min. 50 credits)',
-  },
-  [OrderItemKind.CUSTOM]: {
-    label: 'Custom Request',
-    baseCredits: 50,
-    defaultRevisions: 2,
-    requiredParams: ['description'],
-    description: 'Let us know what you need',
-    pricingText: '50 credits',
-  },
-};
+} as any;
 
 // ─── Credit Packs ────────────────────────────────────────────
 export interface CreditPack {
@@ -135,32 +68,4 @@ export interface CreditPack {
   popular: boolean;
 }
 
-export const CREDIT_PACKS: CreditPack[] = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    credits: 500,
-    priceCents: 45000,
-    pricePerCredit: '$0.90',
-    description: 'Ideal for small creators just starting out.',
-    popular: false,
-  },
-  {
-    id: 'professional',
-    name: 'Professional',
-    credits: 1000,
-    priceCents: 80000,
-    pricePerCredit: '$0.80',
-    description: 'Best for growing channels with consistent output.',
-    popular: true,
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    credits: 2500,
-    priceCents: 190000,
-    pricePerCredit: '$0.76',
-    description: 'For power users and media agencies.',
-    popular: false,
-  },
-];
+export const CREDIT_PACKS: CreditPack[] = [];

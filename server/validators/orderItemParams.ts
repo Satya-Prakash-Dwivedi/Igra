@@ -14,6 +14,10 @@ const genericParams = z.object({
 const videoEditParams = genericParams.extend({
   packageTier: z.enum(['BASIC', 'STANDARD', 'PREMIUM']).default('BASIC'),
   deliverySpeed: z.enum(['STANDARD', 'EXPRESS']).default('STANDARD'),
+  videoFormat: z.string().optional(),
+  videoLength: z.number().optional(),
+  style: z.string().optional(),
+  pace: z.string().optional(),
 });
 
 const thumbnailParams = genericParams.extend({

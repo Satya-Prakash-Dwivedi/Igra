@@ -17,11 +17,11 @@ export interface ServiceDef {
 export const SERVICE_CATALOG: Record<OrderItemKind, ServiceDef> = {
   [OrderItemKind.VIDEO_EDIT]: {
     label: 'Video Editing',
-    baseCredits: 30,
+    baseCredits: 70,
     defaultRevisions: 2,
     requiredParams: ['packageTier', 'deliverySpeed'],
     description: 'Professional video editing with tiered packages',
-    pricingText: 'From 30 credits',
+    pricingText: 'From 70 credits',
   },
   [OrderItemKind.THUMBNAIL]: {
     label: 'Thumbnail Design',

@@ -14,22 +14,29 @@ export function computePricingSnapshot(
   if (kind === OrderItemKind.VIDEO_EDIT) {
     const tier = params.packageTier || 'BASIC';
     if (tier === 'BASIC') {
-      base = 30;
+      base = 70;
     } else if (tier === 'STANDARD') {
-      base = 60;
+      base = 105;
     } else if (tier === 'PREMIUM') {
-      base = 100;
+      base = 130;
     } else {
-      base = 30;
+      base = 70;
     }
 
     if (params.deliverySpeed === 'EXPRESS') {
-      let delta = 10;
-      if (tier === 'STANDARD') delta = 20;
-      if (tier === 'PREMIUM') delta = 30;
+      let delta = 20;
+      let days = 2;
+      if (tier === 'STANDARD') {
+        delta = 30;
+        days = 3;
+      }
+      if (tier === 'PREMIUM') {
+        delta = 40;
+        days = 4;
+      }
 
       modifiers.push({
-        label: 'Express Delivery (24 Hours)',
+        label: `Expedite Delivery (${days}-day)`,
         delta,
       });
     }

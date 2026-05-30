@@ -246,6 +246,15 @@ export async function deliverOrder(orderId: string, adminId: string) {
   order.status = OrderStatus.AWAITING_APPROVAL;
   await order.save();
   await auditService.appendOrderEvent(orderId, 'ORDER_DELIVERED', {}, adminId);
+
+  // Trigger Email Notification (Client)
+  const fullUser = await User.findById(order.userId).select('name email').lean();
+  if (fullUser) {
+    emailService.sendFinalAssetsDeliveryEmail(order, fullUser).catch(err => {
+      console.error('Failed to send final assets delivery email:', err);
+    });
+  }
+
   return order;
 }
 
@@ -263,6 +272,16 @@ export async function completeReview(orderId: string, userId: string) {
   order.status = OrderStatus.FINALIZING;
   await order.save();
   await auditService.appendOrderEvent(orderId, 'REVIEW_COMPLETED', {}, userId);
+
+  // Trigger Delivery Acceptance Emails (Client & Admin)
+  const fullUser = await User.findById(userId).select('name email').lean();
+  if (fullUser) {
+    const { items: detailItems } = await getOrderDetail(orderId);
+    emailService.sendDeliveryAcceptanceEmails(order, fullUser, detailItems).catch(err => {
+      console.error('Failed to send delivery acceptance emails:', err);
+    });
+  }
+
   return order;
 }
 
@@ -566,9 +585,28 @@ async function syncOrderStatus(orderId: string, actorId: string) {
     order.completedAt = new Date();
     await order.save();
     await auditService.appendOrderEvent(orderId, 'COMPLETED', {}, actorId);
+
+    // Trigger Delivery Acceptance Emails if completed by client
+    if (order.userId.toString() === actorId) {
+      const fullUser = await User.findById(actorId).select('name email').lean();
+      if (fullUser) {
+        const { items: detailItems } = await getOrderDetail(orderId);
+        emailService.sendDeliveryAcceptanceEmails(order, fullUser, detailItems).catch(err => {
+          console.error('Failed to send delivery acceptance emails:', err);
+        });
+      }
+    }
   } else if (allDelivered && order.status === OrderStatus.IN_PROGRESS) {
     order.status = OrderStatus.AWAITING_APPROVAL;
     await order.save();
     await auditService.appendOrderEvent(orderId, 'AWAITING_APPROVAL', {}, actorId);
+
+    // Trigger Email Notification (Client)
+    const fullUser = await User.findById(order.userId).select('name email').lean();
+    if (fullUser) {
+      emailService.sendFinalAssetsDeliveryEmail(order, fullUser).catch(err => {
+        console.error('Failed to send final assets delivery email:', err);
+      });
+    }
   }
 }

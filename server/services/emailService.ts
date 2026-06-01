@@ -221,3 +221,149 @@ export const sendMessageNotificationEmail = async (recipient: { email: string, n
         logger.error(`Error sending message notification email:`, error);
     }
 };
+
+export const sendFinalAssetsDeliveryEmail = async (order: any, user: any) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const orderUrl = `${clientUrl}/orders/${order._id}`;
+
+    const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2>Final Assets Delivered!</h2>
+            <p>Hi ${user.name},</p>
+            <p>The admin has posted the final assets for your order <strong>#${order.orderNumber}</strong>.</p>
+            <p>Please go through the final assets and give your thumbs up for the order completion.</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${orderUrl}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Review Final Assets</a>
+            </div>
+            <p>Thank you for choosing Igra Studios!</p>
+        </div>
+    `;
+
+    try {
+        const apiKey = process.env.EMAIL_API_KEY || '';
+        const senderEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios" },
+                to: [{ email: user.email }],
+                subject: `Final Assets Posted for Order #${order.orderNumber}`,
+                htmlContent: htmlContent
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.text();
+            logger.error(`Brevo API error: ${response.status} ${errorData}`);
+            throw new Error(`Brevo API error: ${response.status}`);
+        }
+
+        logger.info(`Final assets delivery email sent to ${user.email} for #${order.orderNumber}`);
+    } catch (error) {
+        logger.error(`Error sending final assets delivery email for #${order.orderNumber}:`, error);
+    }
+};
+
+export const sendDeliveryAcceptanceEmails = async (order: any, user: any, items: any[]) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const orderUrl = `${clientUrl}/orders/${order._id}`;
+    const adminUrl = `${clientUrl}/admin/orders/${order._id}`;
+    const adminEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+    // Generate summary of items and their deliverables
+    let itemsSummaryHtml = '';
+    items.forEach((item: any) => {
+        const kindFormatted = item.kind.replace(/_/g, ' ');
+        itemsSummaryHtml += `
+            <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #e9ecef; border-radius: 8px; background-color: #f8f9fa;">
+                <h4 style="margin: 0 0 10px 0; color: #333; text-transform: uppercase; font-size: 14px;">${kindFormatted}</h4>
+                <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;"><strong>Credits:</strong> ${item.creditsQuoted}</p>
+        `;
+
+        const deliverables = (item.assets || []).filter((a: any) => a.role === 'OUTPUT');
+        const deliveryLinks = item.deliveryLinks || [];
+
+        if (deliverables.length > 0 || deliveryLinks.length > 0) {
+            itemsSummaryHtml += `<p style="margin: 0 0 5px 0; font-size: 12px; color: #333;"><strong>Deliverables:</strong></p><ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #007bff;">`;
+            
+            deliverables.forEach((asset: any) => {
+                itemsSummaryHtml += `<li style="margin-bottom: 5px;"><a href="${asset.url}" target="_blank" style="text-decoration: none; color: #007bff;">${asset.originalName || 'Download File'}</a></li>`;
+            });
+
+            deliveryLinks.forEach((link: string) => {
+                itemsSummaryHtml += `<li style="margin-bottom: 5px;"><a href="${link}" target="_blank" style="text-decoration: none; color: #007bff;">${link}</a> (External Link)</li>`;
+            });
+
+            itemsSummaryHtml += `</ul>`;
+        } else {
+            itemsSummaryHtml += `<p style="margin: 0; font-size: 12px; color: #999; font-style: italic;">No deliverables attached.</p>`;
+        }
+
+        itemsSummaryHtml += `</div>`;
+    });
+
+    // 1. Client Email content
+    const clientHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #28a745;">Delivery Accepted!</h2>
+            <p>Hi ${user.name},</p>
+            <p>You have successfully accepted the delivery of the assets for order <strong>#${order.orderNumber}</strong>.</p>
+            <p>Below is a record of your accepted assets and deliverables:</p>
+            ${itemsSummaryHtml}
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${orderUrl}" style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Order Details</a>
+            </div>
+            <p>Thank you for choosing Igra Studios!</p>
+        </div>
+    `;
+
+    // 2. Admin Email content
+    const adminHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #28a745;">Client Accepted Assets</h2>
+            <p>Hi Admin,</p>
+            <p>The client <strong>${user.name}</strong> (${user.email}) has successfully accepted the delivery and agreed with the given assets for order <strong>#${order.orderNumber}</strong>.</p>
+            <p>Below is a record of the accepted assets and deliverables:</p>
+            ${itemsSummaryHtml}
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${adminUrl}" style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Review Accepted Order</a>
+            </div>
+        </div>
+    `;
+
+    try {
+        const apiKey = process.env.EMAIL_API_KEY || '';
+        const senderEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+        // Send to Client
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios" },
+                to: [{ email: user.email }],
+                subject: `Delivery Accepted - Order #${order.orderNumber}`,
+                htmlContent: clientHtml
+            })
+        });
+
+        // Send to Admin
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios" },
+                to: [{ email: adminEmail }],
+                subject: `✅ Client Accepted Assets - Order #${order.orderNumber}`,
+                htmlContent: adminHtml
+            })
+        });
+
+        logger.info(`Delivery acceptance emails sent for #${order.orderNumber}`);
+    } catch (error) {
+        logger.error(`Error sending delivery acceptance emails for #${order.orderNumber}:`, error);
+    }
+};
+

@@ -83,15 +83,21 @@ export const assignOrder = asyncHandler(async (req: AuthRequest, res: Response) 
 export const transitionItemStatus = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { status } = transitionStatusSchema.parse(req.body); // throws 400 on invalid status
     const iid = req.params.iid as string;
-    const item = await orderService.transitionItemStatus(iid, status as OrderItemStatus, req.user!._id.toString());
-    res.json({ success: true, data: { item } });
+    const oid = req.params.oid as string;
+    await orderService.transitionItemStatus(iid, status as OrderItemStatus, req.user!._id.toString());
+    const updatedOrder = await orderService.getOrderDetail(oid);
+    const updatedItem = updatedOrder.items.find(i => i._id.toString() === iid);
+    res.json({ success: true, data: { item: updatedItem } });
 });
 
 // ─── Deliver Item ──────────────────────────────────────────────
 export const deliverItem = asyncHandler(async (req: AuthRequest, res: Response) => {
     const iid = req.params.iid as string;
-    const item = await orderService.deliverItem(iid, req.user!._id.toString());
-    res.json({ success: true, data: { item } });
+    const oid = req.params.oid as string;
+    await orderService.deliverItem(iid, req.user!._id.toString());
+    const updatedOrder = await orderService.getOrderDetail(oid);
+    const updatedItem = updatedOrder.items.find(i => i._id.toString() === iid);
+    res.json({ success: true, data: { item: updatedItem } });
 });
 
 // ─── Add Asset To Item ────────────────────────────────────────
@@ -99,16 +105,20 @@ export const addAssetToItem = asyncHandler(async (req: AuthRequest, res: Respons
     const oid = req.params.oid as string;
     const iid = req.params.iid as string;
     const { assetIds, role } = req.body;
-    const item = await orderService.addAssetToItem(oid, iid, req.user!._id.toString(), assetIds || [], role);
-    res.json({ success: true, data: { item } });
+    await orderService.addAssetToItem(oid, iid, req.user!._id.toString(), assetIds || [], role);
+    const updatedOrder = await orderService.getOrderDetail(oid);
+    const updatedItem = updatedOrder.items.find(i => i._id.toString() === iid);
+    res.json({ success: true, data: { item: updatedItem } });
 });
 
 export const removeAssetFromItem = asyncHandler(async (req: AuthRequest, res: Response) => {
     const oid = req.params.oid as string;
     const iid = req.params.iid as string;
     const assetId = req.params.assetId as string;
-    const result = await orderService.removeAssetFromItem(oid, iid, req.user!._id.toString(), assetId);
-    res.json({ success: true, data: result });
+    await orderService.removeAssetFromItem(oid, iid, req.user!._id.toString(), assetId);
+    const updatedOrder = await orderService.getOrderDetail(oid);
+    const updatedItem = updatedOrder.items.find(i => i._id.toString() === iid);
+    res.json({ success: true, data: { item: updatedItem } });
 });
 
 // ─── Delivery Links ───────────────────────────────────────────

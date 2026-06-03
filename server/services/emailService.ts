@@ -367,3 +367,52 @@ export const sendDeliveryAcceptanceEmails = async (order: any, user: any, items:
     }
 };
 
+export const sendRevisionRequestEmail = async (order: any, item: any, user: any, notes?: string) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const adminUrl = `${clientUrl}/admin/orders/${order._id}`;
+
+    // Fetch all admins from DB
+    const defaultAdminEmail = process.env.DEFAULT_FROM_EMAIL || '';
+    const admins = await User.find({ role: 'admin' }).select('email').lean();
+    const adminEmails = Array.from(new Set([
+        defaultAdminEmail,
+        ...admins.map(a => a.email)
+    ])).filter(Boolean);
+
+    const kindFormatted = item.kind.replace(/_/g, ' ');
+    const notesHtml = notes ? `<p style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; font-style: italic;">"${notes}"</p>` : '<p style="font-style: italic; color: #999;">No specific revision notes provided.</p>';
+
+    const adminHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #d39e00;">Revision Requested</h2>
+            <p>The client <strong>${user.name}</strong> (${user.email}) has requested a revision for order <strong>#${order.orderNumber}</strong>.</p>
+            <p><strong>Service:</strong> ${kindFormatted}</p>
+            <p><strong>Revision Details:</strong></p>
+            ${notesHtml}
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${adminUrl}" style="background-color: #ffc107; color: black; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Review Request</a>
+            </div>
+        </div>
+    `;
+
+    try {
+        const apiKey = process.env.EMAIL_API_KEY || '';
+        const senderEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios" },
+                to: adminEmails.map(email => ({ email })),
+                subject: `⚠️ Revision Requested - Order #${order.orderNumber}`,
+                htmlContent: adminHtml
+            })
+        });
+
+        logger.info(`Revision request emails sent to admins for #${order.orderNumber}`);
+    } catch (error) {
+        logger.error(`Error sending revision request emails for #${order.orderNumber}:`, error);
+    }
+};
+

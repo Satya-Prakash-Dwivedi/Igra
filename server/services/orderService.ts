@@ -368,12 +368,29 @@ export async function requestRevision(orderItemId: string, userId: string, notes
     notes,
   }, userId);
 
+  // Also append an Order event so it shows up on the admin timeline
+  await auditService.appendOrderEvent(item.orderId.toString(), 'REVISION_REQUESTED', {
+    itemId: orderItemId,
+    kind: item.kind,
+    notes,
+  }, userId);
+
   // Move order back to IN_PROGRESS if it was in AWAITING_APPROVAL
   const order = await Order.findById(item.orderId);
   if (order && order.status === OrderStatus.AWAITING_APPROVAL) {
     order.status = OrderStatus.IN_PROGRESS;
     await order.save();
     await auditService.appendOrderEvent(order._id.toString(), 'REVISION_REOPENED', { itemId: orderItemId }, userId);
+  }
+
+  // Send revision request email to admin
+  if (order) {
+    const fullUser = await User.findById(userId).select('name email').lean();
+    if (fullUser) {
+      emailService.sendRevisionRequestEmail(order, item, fullUser, notes).catch(err => {
+        console.error('Failed to send revision request email:', err);
+      });
+    }
   }
 
   return item;

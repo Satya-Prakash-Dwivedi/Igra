@@ -12,14 +12,25 @@ export const errorHandler = (
 
   const statusCode = res.statusCode === 200 ? (err.statusCode ?? 500) : res.statusCode
 
-  logger.error('request.failed', {
-    requestId: res.locals.requestId,
-    method: req.method,
-    path: req.originalUrl,
-    statusCode,
-    ip: req.ip,
-    error: serializeError(err),
-  })
+  if (statusCode >= 500) {
+    logger.error('request.failed', {
+      requestId: res.locals.requestId,
+      method: req.method,
+      path: req.originalUrl,
+      statusCode,
+      ip: req.ip,
+      error: serializeError(err),
+    })
+  } else {
+    logger.warn('request.failed', {
+      requestId: res.locals.requestId,
+      method: req.method,
+      path: req.originalUrl,
+      statusCode,
+      ip: req.ip,
+      message: err.message,
+    })
+  }
 
   res.status(statusCode).json({
     success: false,

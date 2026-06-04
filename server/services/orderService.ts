@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Order, { OrderStatus, ORDER_TRANSITIONS } from '../models/Order.js';
 import OrderItem, { OrderItemKind, OrderItemStatus, ITEM_TRANSITIONS } from '../models/OrderItem.js';
+import Asset from '../models/Asset.js';
 import AssetLink, { AssetRole } from '../models/AssetLink.js';
 import { SERVICE_CATALOG } from '../config/serviceCatalog.js';
 import { validateOrderItemParams } from '../validators/orderItemParams.js';
@@ -319,6 +320,24 @@ export async function transitionItemStatus(
 
   await auditService.appendItemEvent(orderItemId, 'STATUS_CHANGED', { from: oldStatus, to: newStatus }, actorId);
 
+  // If transitioning to DELIVERED and it was a revision
+  if (newStatus === OrderItemStatus.DELIVERED && item.usedRevisions > 0) {
+    await auditService.appendOrderEvent(item.orderId.toString(), 'REVISION_DELIVERED', {
+      itemId: orderItemId,
+      kind: item.kind,
+    }, actorId);
+
+    const order = await Order.findById(item.orderId);
+    if (order) {
+      const fullUser = await User.findById(order.userId).select('name email').lean();
+      if (fullUser) {
+        emailService.sendRevisionDeliveredEmail(order, item, fullUser).catch(err => {
+          console.error('Failed to send revision delivered email:', err);
+        });
+      }
+    }
+  }
+
   // Check if all items are delivered → move order to AWAITING_APPROVAL
   await syncOrderStatus(item.orderId.toString(), actorId);
 
@@ -348,7 +367,7 @@ export async function approveItem(orderItemId: string, userId: string) {
 }
 
 // ─── User: Request Revision ───────────────────────────────────
-export async function requestRevision(orderItemId: string, userId: string, notes?: string) {
+export async function requestRevision(orderItemId: string, userId: string, notes?: string, assetIds?: string[]) {
   const item = await OrderItem.findById(orderItemId);
   if (!item) throw new Error('Item not found');
   if (item.status !== OrderItemStatus.DELIVERED) {
@@ -356,6 +375,11 @@ export async function requestRevision(orderItemId: string, userId: string, notes
   }
   if (item.usedRevisions >= item.allowedRevisions) {
     throw new Error(`Revision limit reached (${item.allowedRevisions}). A new paid item is required.`);
+  }
+
+  // Associate files with item as INPUT assets
+  if (assetIds && assetIds.length > 0) {
+    await addAssetToItem(item.orderId.toString(), orderItemId, userId, assetIds, AssetRole.INPUT);
   }
 
   item.usedRevisions += 1;
@@ -366,6 +390,7 @@ export async function requestRevision(orderItemId: string, userId: string, notes
     usedRevisions: item.usedRevisions,
     allowedRevisions: item.allowedRevisions,
     notes,
+    assetIds: assetIds || [],
   }, userId);
 
   // Also append an Order event so it shows up on the admin timeline
@@ -373,6 +398,7 @@ export async function requestRevision(orderItemId: string, userId: string, notes
     itemId: orderItemId,
     kind: item.kind,
     notes,
+    assetIds: assetIds || [],
   }, userId);
 
   // Move order back to IN_PROGRESS if it was in AWAITING_APPROVAL
@@ -387,7 +413,15 @@ export async function requestRevision(orderItemId: string, userId: string, notes
   if (order) {
     const fullUser = await User.findById(userId).select('name email').lean();
     if (fullUser) {
-      emailService.sendRevisionRequestEmail(order, item, fullUser, notes).catch(err => {
+      let populatedAssets: any[] = [];
+      if (assetIds && assetIds.length > 0) {
+        const assetsRaw = await Asset.find({ _id: { $in: assetIds } }).lean();
+        populatedAssets = await Promise.all(assetsRaw.map(async (asset) => {
+          const url = await uploadService.getAssetPermanentUrl(asset._id.toString());
+          return { ...asset, url };
+        }));
+      }
+      emailService.sendRevisionRequestEmail(order, item, fullUser, notes, populatedAssets).catch(err => {
         console.error('Failed to send revision request email:', err);
       });
     }
@@ -496,7 +530,30 @@ export async function getOrderDetail(orderId: string) {
     };
   }));
 
-  const events = await auditService.getOrderTimeline(orderId);
+  const eventsRaw = await auditService.getOrderTimeline(orderId);
+  const events = await Promise.all(eventsRaw.map(async (event: any) => {
+    if (event.type === 'REVISION_REQUESTED' && event.data && event.data.assetIds && event.data.assetIds.length > 0) {
+      const assets = await Asset.find({ _id: { $in: event.data.assetIds } }).lean();
+      const populatedAssets = await Promise.all(assets.map(async (asset) => {
+        const url = await uploadService.getAssetPermanentUrl(asset._id.toString());
+        return {
+          _id: asset._id,
+          originalName: asset.originalName,
+          mimeType: asset.mimeType,
+          sizeBytes: asset.sizeBytes,
+          url,
+        };
+      }));
+      return {
+        ...event,
+        data: {
+          ...event.data,
+          assets: populatedAssets,
+        },
+      };
+    }
+    return event;
+  }));
 
   return { order, items, events };
 }

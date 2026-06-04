@@ -80,7 +80,7 @@ export const approveItem = asyncHandler(async (req: AuthRequest, res: Response) 
 // ─── Request Revision ─────────────────────────────────────────
 export const requestRevision = asyncHandler(async (req: AuthRequest, res: Response) => {
   const iid = req.params.iid as string;
-  const item = await orderService.requestRevision(iid, req.user!._id.toString(), req.body.notes);
+  const item = await orderService.requestRevision(iid, req.user!._id.toString(), req.body.notes, req.body.assetIds);
   res.json({ success: true, data: item });
 });
 

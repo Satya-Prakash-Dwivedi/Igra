@@ -370,9 +370,6 @@ export async function approveItem(orderItemId: string, userId: string) {
 export async function requestRevision(orderItemId: string, userId: string, notes?: string, assetIds?: string[]) {
   const item = await OrderItem.findById(orderItemId);
   if (!item) throw new Error('Item not found');
-  if (item.status !== OrderItemStatus.DELIVERED) {
-    throw new Error('Item must be DELIVERED to request revision');
-  }
   if (item.usedRevisions >= item.allowedRevisions) {
     throw new Error(`Revision limit reached (${item.allowedRevisions}). A new paid item is required.`);
   }

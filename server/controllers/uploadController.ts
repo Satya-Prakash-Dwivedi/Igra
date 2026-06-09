@@ -81,7 +81,8 @@ export const handleLocalPartUpload = asyncHandler(async (req: AuthRequest, res: 
 // ─── View Asset (Stream or Redirect) ──────────────────────────
 export const viewAsset = asyncHandler(async (req: AuthRequest, res: Response) => {
   const assetId = req.params.assetId as string;
-  const url = await uploadService.getAssetDownloadUrl(assetId);
+  const isDownload = req.query.download === 'true';
+  const url = await uploadService.getAssetDownloadUrl(assetId, isDownload);
 
   if (url.startsWith('http')) {
     // S3: Redirect to the signed URL
@@ -105,8 +106,10 @@ export const viewAsset = asyncHandler(async (req: AuthRequest, res: Response) =>
       return;
     }
 
+    const disposition = isDownload ? 'attachment' : 'inline';
     res.setHeader('Content-Type', asset.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${asset.originalName}"`);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${asset.originalName}"`);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     fs.createReadStream(filePath).pipe(res);
   }
 });

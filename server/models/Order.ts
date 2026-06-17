@@ -19,7 +19,7 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.UNDER_REVIEW]:      [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
   [OrderStatus.IN_PROGRESS]:       [OrderStatus.FINALIZING, OrderStatus.CANCELLED],
   [OrderStatus.FINALIZING]:        [OrderStatus.AWAITING_APPROVAL, OrderStatus.IN_PROGRESS],
-  [OrderStatus.AWAITING_APPROVAL]: [OrderStatus.COMPLETED, OrderStatus.IN_PROGRESS],
+  [OrderStatus.AWAITING_APPROVAL]: [OrderStatus.COMPLETED, OrderStatus.IN_PROGRESS, OrderStatus.FINALIZING],
   [OrderStatus.COMPLETED]:         [],
   [OrderStatus.CANCELLED]:         [],
 };

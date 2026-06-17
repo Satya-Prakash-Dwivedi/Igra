@@ -538,7 +538,7 @@ export async function getAssetPermanentUrl(assetId: string): Promise<string> {
  * Generates a temporary URL for viewing/downloading an asset.
  * Returns a signed S3 URL or a local file path.
  */
-export async function getAssetDownloadUrl(assetId: string): Promise<string> {
+export async function getAssetDownloadUrl(assetId: string, download = false): Promise<string> {
   const asset = await Asset.findById(assetId);
   if (!asset) throw new Error('Asset not found');
 
@@ -550,10 +550,16 @@ export async function getAssetDownloadUrl(assetId: string): Promise<string> {
   }
 
   const s3Client = (await import('../config/s3.js')).default;
-  const command = new GetObjectCommand({
+  const commandInput: any = {
     Bucket: process.env.S3_BUCKET,
     Key: version.storageKey,
-  });
+  };
+
+  if (download) {
+    commandInput.ResponseContentDisposition = `attachment; filename="${asset.originalName}"`;
+  }
+
+  const command = new GetObjectCommand(commandInput);
 
   return getPresignedUrl(s3Client, command, { expiresIn: 3600 });
 }

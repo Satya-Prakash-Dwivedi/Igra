@@ -60,6 +60,7 @@ export const login = asyncHandler(async(req: Request, res: Response) => {
 
     // 2. Check is user exists and if password is correct
     if(!user || !(await user.comparePassword(password))){
+        res.status(401);
         throw new Error("Invalid email or password");
     }
 

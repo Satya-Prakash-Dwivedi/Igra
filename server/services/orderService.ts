@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Order, { OrderStatus, ORDER_TRANSITIONS } from '../models/Order.js';
 import OrderItem, { OrderItemKind, OrderItemStatus, ITEM_TRANSITIONS } from '../models/OrderItem.js';
+import Asset from '../models/Asset.js';
 import AssetLink, { AssetRole } from '../models/AssetLink.js';
 import { SERVICE_CATALOG } from '../config/serviceCatalog.js';
 import { validateOrderItemParams } from '../validators/orderItemParams.js';
@@ -236,30 +237,55 @@ export async function assignOrder(orderId: string, adminId: string, staffId: str
   return order;
 }
 
-/**
- * Admin: Mark order as delivered (Awaiting Approval).
- */
 export async function deliverOrder(orderId: string, adminId: string) {
   const order = await Order.findById(orderId);
   if (!order) throw new Error('Order not found');
   
-  order.status = OrderStatus.AWAITING_APPROVAL;
-  await order.save();
-  await auditService.appendOrderEvent(orderId, 'ORDER_DELIVERED', {}, adminId);
+  // Transition all non-terminal items to DELIVERED by stepping through intermediate states
+  const items = await OrderItem.find({ orderId });
+  for (const item of items) {
+    if (![OrderItemStatus.APPROVED, OrderItemStatus.FAILED, OrderItemStatus.CANCELLED, OrderItemStatus.DELIVERED].includes(item.status as OrderItemStatus)) {
+      // Step 1: PENDING_INPUT / BLOCKED -> READY
+      if (item.status === OrderItemStatus.PENDING_INPUT || item.status === OrderItemStatus.BLOCKED) {
+        await transitionItemStatus(item._id.toString(), OrderItemStatus.READY, adminId);
+        item.status = OrderItemStatus.READY;
+      }
+      // Step 2: READY -> IN_PROGRESS
+      if (item.status === OrderItemStatus.READY) {
+        await transitionItemStatus(item._id.toString(), OrderItemStatus.IN_PROGRESS, adminId);
+        item.status = OrderItemStatus.IN_PROGRESS;
+      }
+      // Step 3: IN_PROGRESS -> DELIVERED
+      if (item.status === OrderItemStatus.IN_PROGRESS) {
+        await transitionItemStatus(item._id.toString(), OrderItemStatus.DELIVERED, adminId);
+      }
+    }
+  }
 
-  // Trigger Email Notification (Client)
-  const fullUser = await User.findById(order.userId).select('name email').lean();
-  if (fullUser) {
-    emailService.sendFinalAssetsDeliveryEmail(order, fullUser).catch(err => {
-      console.error('Failed to send final assets delivery email:', err);
-    });
+  // transitionItemStatus triggers syncOrderStatus which will handle setting
+  // the order status to AWAITING_APPROVAL and sending the email.
+  
+  // But just in case there are no items to transition (which shouldn't happen), 
+  // ensure order is AWAITING_APPROVAL
+  if (order.status !== OrderStatus.AWAITING_APPROVAL) {
+    order.status = OrderStatus.AWAITING_APPROVAL;
+    await order.save();
+    await auditService.appendOrderEvent(orderId, 'ORDER_DELIVERED', {}, adminId);
+
+    // Trigger Email Notification (Client)
+    const fullUser = await User.findById(order.userId).select('name email').lean();
+    if (fullUser) {
+      emailService.sendFinalAssetsDeliveryEmail(order, fullUser).catch(err => {
+        console.error('Failed to send final assets delivery email:', err);
+      });
+    }
   }
 
   return order;
 }
 
 /**
- * User: Mark review as complete (Finalizing).
+ * User: Mark review as complete (Completed).
  */
 export async function completeReview(orderId: string, userId: string) {
   const order = await Order.findOne({ _id: orderId, userId });
@@ -269,9 +295,20 @@ export async function completeReview(orderId: string, userId: string) {
     throw new Error('Order is not in review state');
   }
 
-  order.status = OrderStatus.FINALIZING;
+  // Also approve all pending items
+  const items = await OrderItem.find({ orderId });
+  for (const item of items) {
+    if (item.status === OrderItemStatus.DELIVERED) {
+      item.status = OrderItemStatus.APPROVED;
+      await item.save();
+      await auditService.appendItemEvent(item._id.toString(), 'APPROVED', {}, userId);
+    }
+  }
+
+  order.status = OrderStatus.COMPLETED;
+  order.completedAt = new Date();
   await order.save();
-  await auditService.appendOrderEvent(orderId, 'REVIEW_COMPLETED', {}, userId);
+  await auditService.appendOrderEvent(orderId, 'COMPLETED', {}, userId);
 
   // Trigger Delivery Acceptance Emails (Client & Admin)
   const fullUser = await User.findById(userId).select('name email').lean();
@@ -319,6 +356,24 @@ export async function transitionItemStatus(
 
   await auditService.appendItemEvent(orderItemId, 'STATUS_CHANGED', { from: oldStatus, to: newStatus }, actorId);
 
+  // If transitioning to DELIVERED and it was a revision
+  if (newStatus === OrderItemStatus.DELIVERED && item.usedRevisions > 0) {
+    await auditService.appendOrderEvent(item.orderId.toString(), 'REVISION_DELIVERED', {
+      itemId: orderItemId,
+      kind: item.kind,
+    }, actorId);
+
+    const order = await Order.findById(item.orderId);
+    if (order) {
+      const fullUser = await User.findById(order.userId).select('name email').lean();
+      if (fullUser) {
+        emailService.sendRevisionDeliveredEmail(order, item, fullUser).catch(err => {
+          console.error('Failed to send revision delivered email:', err);
+        });
+      }
+    }
+  }
+
   // Check if all items are delivered → move order to AWAITING_APPROVAL
   await syncOrderStatus(item.orderId.toString(), actorId);
 
@@ -348,14 +403,16 @@ export async function approveItem(orderItemId: string, userId: string) {
 }
 
 // ─── User: Request Revision ───────────────────────────────────
-export async function requestRevision(orderItemId: string, userId: string, notes?: string) {
+export async function requestRevision(orderItemId: string, userId: string, notes?: string, assetIds?: string[]) {
   const item = await OrderItem.findById(orderItemId);
   if (!item) throw new Error('Item not found');
-  if (item.status !== OrderItemStatus.DELIVERED) {
-    throw new Error('Item must be DELIVERED to request revision');
-  }
   if (item.usedRevisions >= item.allowedRevisions) {
     throw new Error(`Revision limit reached (${item.allowedRevisions}). A new paid item is required.`);
+  }
+
+  // Associate files with item as INPUT assets
+  if (assetIds && assetIds.length > 0) {
+    await addAssetToItem(item.orderId.toString(), orderItemId, userId, assetIds, AssetRole.INPUT);
   }
 
   item.usedRevisions += 1;
@@ -366,6 +423,15 @@ export async function requestRevision(orderItemId: string, userId: string, notes
     usedRevisions: item.usedRevisions,
     allowedRevisions: item.allowedRevisions,
     notes,
+    assetIds: assetIds || [],
+  }, userId);
+
+  // Also append an Order event so it shows up on the admin timeline
+  await auditService.appendOrderEvent(item.orderId.toString(), 'REVISION_REQUESTED', {
+    itemId: orderItemId,
+    kind: item.kind,
+    notes,
+    assetIds: assetIds || [],
   }, userId);
 
   // Move order back to IN_PROGRESS if it was in AWAITING_APPROVAL
@@ -374,6 +440,24 @@ export async function requestRevision(orderItemId: string, userId: string, notes
     order.status = OrderStatus.IN_PROGRESS;
     await order.save();
     await auditService.appendOrderEvent(order._id.toString(), 'REVISION_REOPENED', { itemId: orderItemId }, userId);
+  }
+
+  // Send revision request email to admin
+  if (order) {
+    const fullUser = await User.findById(userId).select('name email').lean();
+    if (fullUser) {
+      let populatedAssets: any[] = [];
+      if (assetIds && assetIds.length > 0) {
+        const assetsRaw = await Asset.find({ _id: { $in: assetIds } }).lean();
+        populatedAssets = await Promise.all(assetsRaw.map(async (asset) => {
+          const url = await uploadService.getAssetPermanentUrl(asset._id.toString());
+          return { ...asset, url };
+        }));
+      }
+      emailService.sendRevisionRequestEmail(order, item, fullUser, notes, populatedAssets).catch(err => {
+        console.error('Failed to send revision request email:', err);
+      });
+    }
   }
 
   return item;
@@ -479,7 +563,30 @@ export async function getOrderDetail(orderId: string) {
     };
   }));
 
-  const events = await auditService.getOrderTimeline(orderId);
+  const eventsRaw = await auditService.getOrderTimeline(orderId);
+  const events = await Promise.all(eventsRaw.map(async (event: any) => {
+    if (event.type === 'REVISION_REQUESTED' && event.data && event.data.assetIds && event.data.assetIds.length > 0) {
+      const assets = await Asset.find({ _id: { $in: event.data.assetIds } }).lean();
+      const populatedAssets = await Promise.all(assets.map(async (asset) => {
+        const url = await uploadService.getAssetPermanentUrl(asset._id.toString());
+        return {
+          _id: asset._id,
+          originalName: asset.originalName,
+          mimeType: asset.mimeType,
+          sizeBytes: asset.sizeBytes,
+          url,
+        };
+      }));
+      return {
+        ...event,
+        data: {
+          ...event.data,
+          assets: populatedAssets,
+        },
+      };
+    }
+    return event;
+  }));
 
   return { order, items, events };
 }

@@ -367,3 +367,112 @@ export const sendDeliveryAcceptanceEmails = async (order: any, user: any, items:
     }
 };
 
+export const sendRevisionRequestEmail = async (order: any, item: any, user: any, notes?: string, assets?: any[]) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const adminUrl = `${clientUrl}/admin/orders/${order._id}`;
+
+    // Fetch all admins from DB
+    const defaultAdminEmail = process.env.DEFAULT_FROM_EMAIL || '';
+    const admins = await User.find({ role: 'admin' }).select('email').lean();
+    const adminEmails = Array.from(new Set([
+        defaultAdminEmail,
+        ...admins.map(a => a.email)
+    ])).filter(Boolean);
+
+    const kindFormatted = item.kind.replace(/_/g, ' ');
+    const notesHtml = notes ? `<p style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; font-style: italic;">"${notes}"</p>` : '<p style="font-style: italic; color: #999;">No specific revision notes provided.</p>';
+
+    let assetsHtml = '';
+    if (assets && assets.length > 0) {
+        const baseUrl = process.env.VITE_API_URL || 'http://localhost:5000';
+        assetsHtml = `
+            <p><strong>Attached Reference Files:</strong></p>
+            <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #007bff; margin-bottom: 20px;">
+        `;
+        assets.forEach((asset: any) => {
+            const fileUrl = asset.url.startsWith('http') ? asset.url : `${baseUrl}${asset.url}`;
+            assetsHtml += `<li style="margin-bottom: 5px;"><a href="${fileUrl}" target="_blank" style="text-decoration: none; color: #007bff;">${asset.originalName}</a></li>`;
+        });
+        assetsHtml += `</ul>`;
+    }
+
+    const adminHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #d39e00;">Revision Requested</h2>
+            <p>The client <strong>${user.name}</strong> (${user.email}) has requested a revision for order <strong>#${order.orderNumber}</strong>.</p>
+            <p><strong>Service:</strong> ${kindFormatted}</p>
+            <p><strong>Revision Details:</strong></p>
+            ${notesHtml}
+            ${assetsHtml}
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${adminUrl}" style="background-color: #ffc107; color: black; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Review Request</a>
+            </div>
+        </div>
+    `;
+
+    try {
+        const apiKey = process.env.EMAIL_API_KEY || '';
+        const senderEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios" },
+                to: adminEmails.map(email => ({ email })),
+                subject: `⚠️ Revision Requested - Order #${order.orderNumber}`,
+                htmlContent: adminHtml
+            })
+        });
+
+        logger.info(`Revision request emails sent to admins for #${order.orderNumber}`);
+    } catch (error) {
+        logger.error(`Error sending revision request emails for #${order.orderNumber}:`, error);
+    }
+};
+
+export const sendRevisionDeliveredEmail = async (order: any, item: any, user: any) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const orderUrl = `${clientUrl}/orders/${order._id}`;
+    const kindFormatted = item.kind.replace(/_/g, ' ');
+
+    const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #28a745;">Revision Delivered!</h2>
+            <p>Hi ${user.name},</p>
+            <p>The production team has delivered the revision for service <strong>${kindFormatted}</strong> on order <strong>#${order.orderNumber}</strong>.</p>
+            <p>Please review the updated deliverables and approve them if everything looks good.</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${orderUrl}" style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Review Updated Deliverables</a>
+            </div>
+            <p>Thank you for choosing Igra Studios!</p>
+        </div>
+    `;
+
+    try {
+        const apiKey = process.env.EMAIL_API_KEY || '';
+        const senderEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios" },
+                to: [{ email: user.email }],
+                subject: `Revision Delivered for Order #${order.orderNumber} - ${kindFormatted}`,
+                htmlContent: htmlContent
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.text();
+            logger.error(`Brevo API error: ${response.status} ${errorData}`);
+            throw new Error(`Brevo API error: ${response.status}`);
+        }
+
+        logger.info(`Revision delivered email sent to ${user.email} for #${order.orderNumber}`);
+    } catch (error) {
+        logger.error(`Error sending revision delivered email for #${order.orderNumber}:`, error);
+    }
+};
+

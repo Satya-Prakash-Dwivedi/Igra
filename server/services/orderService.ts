@@ -237,30 +237,55 @@ export async function assignOrder(orderId: string, adminId: string, staffId: str
   return order;
 }
 
-/**
- * Admin: Mark order as delivered (Awaiting Approval).
- */
 export async function deliverOrder(orderId: string, adminId: string) {
   const order = await Order.findById(orderId);
   if (!order) throw new Error('Order not found');
   
-  order.status = OrderStatus.AWAITING_APPROVAL;
-  await order.save();
-  await auditService.appendOrderEvent(orderId, 'ORDER_DELIVERED', {}, adminId);
+  // Transition all non-terminal items to DELIVERED by stepping through intermediate states
+  const items = await OrderItem.find({ orderId });
+  for (const item of items) {
+    if (![OrderItemStatus.APPROVED, OrderItemStatus.FAILED, OrderItemStatus.CANCELLED, OrderItemStatus.DELIVERED].includes(item.status as OrderItemStatus)) {
+      // Step 1: PENDING_INPUT / BLOCKED -> READY
+      if (item.status === OrderItemStatus.PENDING_INPUT || item.status === OrderItemStatus.BLOCKED) {
+        await transitionItemStatus(item._id.toString(), OrderItemStatus.READY, adminId);
+        item.status = OrderItemStatus.READY;
+      }
+      // Step 2: READY -> IN_PROGRESS
+      if (item.status === OrderItemStatus.READY) {
+        await transitionItemStatus(item._id.toString(), OrderItemStatus.IN_PROGRESS, adminId);
+        item.status = OrderItemStatus.IN_PROGRESS;
+      }
+      // Step 3: IN_PROGRESS -> DELIVERED
+      if (item.status === OrderItemStatus.IN_PROGRESS) {
+        await transitionItemStatus(item._id.toString(), OrderItemStatus.DELIVERED, adminId);
+      }
+    }
+  }
 
-  // Trigger Email Notification (Client)
-  const fullUser = await User.findById(order.userId).select('name email').lean();
-  if (fullUser) {
-    emailService.sendFinalAssetsDeliveryEmail(order, fullUser).catch(err => {
-      console.error('Failed to send final assets delivery email:', err);
-    });
+  // transitionItemStatus triggers syncOrderStatus which will handle setting
+  // the order status to AWAITING_APPROVAL and sending the email.
+  
+  // But just in case there are no items to transition (which shouldn't happen), 
+  // ensure order is AWAITING_APPROVAL
+  if (order.status !== OrderStatus.AWAITING_APPROVAL) {
+    order.status = OrderStatus.AWAITING_APPROVAL;
+    await order.save();
+    await auditService.appendOrderEvent(orderId, 'ORDER_DELIVERED', {}, adminId);
+
+    // Trigger Email Notification (Client)
+    const fullUser = await User.findById(order.userId).select('name email').lean();
+    if (fullUser) {
+      emailService.sendFinalAssetsDeliveryEmail(order, fullUser).catch(err => {
+        console.error('Failed to send final assets delivery email:', err);
+      });
+    }
   }
 
   return order;
 }
 
 /**
- * User: Mark review as complete (Finalizing).
+ * User: Mark review as complete (Completed).
  */
 export async function completeReview(orderId: string, userId: string) {
   const order = await Order.findOne({ _id: orderId, userId });
@@ -270,9 +295,20 @@ export async function completeReview(orderId: string, userId: string) {
     throw new Error('Order is not in review state');
   }
 
-  order.status = OrderStatus.FINALIZING;
+  // Also approve all pending items
+  const items = await OrderItem.find({ orderId });
+  for (const item of items) {
+    if (item.status === OrderItemStatus.DELIVERED) {
+      item.status = OrderItemStatus.APPROVED;
+      await item.save();
+      await auditService.appendItemEvent(item._id.toString(), 'APPROVED', {}, userId);
+    }
+  }
+
+  order.status = OrderStatus.COMPLETED;
+  order.completedAt = new Date();
   await order.save();
-  await auditService.appendOrderEvent(orderId, 'REVIEW_COMPLETED', {}, userId);
+  await auditService.appendOrderEvent(orderId, 'COMPLETED', {}, userId);
 
   // Trigger Delivery Acceptance Emails (Client & Admin)
   const fullUser = await User.findById(userId).select('name email').lean();

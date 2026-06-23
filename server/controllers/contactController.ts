@@ -4,20 +4,43 @@ import logger from '../utils/logger.js';
 
 export const submitContactForm = async (req: Request, res: Response): Promise<void> => {
     try {
-        const {
-            name,
-            email,
-            phone,
-            company,
-            service,
-            budget,
-            message,
-            source,
-            website // Honeypot field
-        } = req.body;
+        // Framer sometimes nests the form fields under `data`
+        const payload = req.body?.data || req.body || {};
+
+        // Helper to find a field by a list of possible names
+        const getField = (keys: string[]) => {
+            for (const key of keys) {
+                if (payload[key] && typeof payload[key] === 'string') {
+                    return payload[key].trim();
+                }
+            }
+            return '';
+        };
+
+        const firstName = getField(['First Name', 'firstName', 'first_name', 'name']);
+        const lastName = getField(['Last Name', 'lastName', 'last_name']);
+        const name = [firstName, lastName].filter(Boolean).join(' ');
+
+        const email = getField(['Email', 'email']);
+        const phone = getField(['Phone', 'phone']);
+        const company = getField(['Company', 'company']);
+        const service = getField(['Services', 'services', 'Service', 'service']);
+        const budget = getField(['Budget', 'budget']);
+
+        const businessMsg = getField(['Business', 'business']);
+        const explicitMessage = getField(['Message', 'message']);
+        const message = explicitMessage || businessMsg;
+
+        const source = getField(['Source', 'source']) || 'Contact Page';
+        
+        // We will use a dedicated hidden field for honeypot if you add one (e.g., 'bot_field')
+        const honeypot = getField(['bot_field', 'honeypot']); 
+        
+        // We also want to log the raw payload to figure out what Framer is sending
+        logger.info("Received Contact Form Payload:", JSON.stringify(payload));
 
         // 1. Honeypot check
-        if (website) {
+        if (honeypot) {
             // Silently pretend it worked for bots
             res.status(200).json({ success: true, message: 'Contact form submitted successfully.' });
             return;

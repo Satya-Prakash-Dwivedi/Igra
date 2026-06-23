@@ -25,6 +25,7 @@ import directMessageRoutes from './routes/directMessageRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
 import logger, { serializeError } from './utils/logger.js';
 
 dotenv.config({ quiet: true });
@@ -42,6 +43,7 @@ const httpServer = createServer(app);
 
 // ─── Socket.IO for Real-Time Chat ─────────────────────────────
 const origins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(o => o.trim()) : ['http://localhost:5173'];
+origins.push('https://igrastudios.com', 'https://www.igrastudios.com');
 
 const io = new SocketIOServer(httpServer, {
   cors: {
@@ -166,6 +168,7 @@ app.use('/api/v1/uploads',         uploadRoutes);
 app.use('/api/v1/admin',           adminRoutes);
 app.use('/api/v1/notifications',   notificationRoutes);
 app.use('/api/v1/webhooks',        webhookRoutes);
+app.use('/api/v1/contact',         contactRoutes);
 
 // Static Assets
 app.use('/uploads', express.static(path.resolve('uploads')));

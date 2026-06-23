@@ -476,3 +476,117 @@ export const sendRevisionDeliveredEmail = async (order: any, item: any, user: an
     }
 };
 
+export const sendContactFormEmail = async (contactData: any) => {
+    const { name, email, phone, company, service, budget, message, source } = contactData;
+
+    // Fetch all admins from DB
+    const defaultAdminEmail = process.env.DEFAULT_FROM_EMAIL || '';
+    const admins = await User.find({ role: 'admin' }).select('email').lean();
+    const adminEmails = Array.from(new Set([
+        defaultAdminEmail,
+        ...admins.map(a => a.email)
+    ])).filter(Boolean);
+
+    const escapeHtml = (value: string = "") => {
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    };
+
+    const submittedAt = new Date().toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        dateStyle: "medium",
+        timeStyle: "short",
+    });
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; background: #f6f6f6; padding: 24px;">
+        <div style="max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e5e5;">
+          
+          <div style="background: #0a0a0a; color: #ffffff; padding: 24px;">
+            <h1 style="margin: 0; font-size: 22px;">New Contact Form Submission</h1>
+            <p style="margin: 8px 0 0; color: #cccccc;">Igra Studios website</p>
+          </div>
+          <div style="padding: 24px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 10px 0; color: #666666; width: 140px;">Name</td>
+                <td style="padding: 10px 0; font-weight: 600;">${escapeHtml(name)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 0; color: #666666;">Email</td>
+                <td style="padding: 10px 0;">
+                  <a href="mailto:${escapeHtml(email)}" style="color: #ff4533;">${escapeHtml(email)}</a>
+                </td>
+              </tr>
+              ${phone ? `
+              <tr>
+                <td style="padding: 10px 0; color: #666666;">Phone</td>
+                <td style="padding: 10px 0;">${escapeHtml(phone)}</td>
+              </tr>` : ""}
+              ${company ? `
+              <tr>
+                <td style="padding: 10px 0; color: #666666;">Company</td>
+                <td style="padding: 10px 0;">${escapeHtml(company)}</td>
+              </tr>` : ""}
+              ${service ? `
+              <tr>
+                <td style="padding: 10px 0; color: #666666;">Service</td>
+                <td style="padding: 10px 0;">${escapeHtml(service)}</td>
+              </tr>` : ""}
+              ${budget ? `
+              <tr>
+                <td style="padding: 10px 0; color: #666666;">Budget</td>
+                <td style="padding: 10px 0;">${escapeHtml(budget)}</td>
+              </tr>` : ""}
+              <tr>
+                <td style="padding: 10px 0; color: #666666;">Submitted At</td>
+                <td style="padding: 10px 0;">${submittedAt}</td>
+              </tr>
+              ${source ? `
+              <tr>
+                <td style="padding: 10px 0; color: #666666;">Source</td>
+                <td style="padding: 10px 0;">${escapeHtml(source)}</td>
+              </tr>` : ""}
+            </table>
+            <div style="margin-top: 24px;">
+              <p style="margin: 0 0 8px; color: #666666;">Message</p>
+              <div style="background: #f8f8f8; border: 1px solid #eeeeee; border-radius: 8px; padding: 16px; line-height: 1.6;">
+                ${escapeHtml(message).replace(/\n/g, "<br />")}
+              </div>
+            </div>
+            <div style="margin-top: 24px;">
+              <a href="mailto:${escapeHtml(email)}" style="display: inline-block; background: #ff4533; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 999px; font-weight: 600;">
+                Reply to ${escapeHtml(name)}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    try {
+        const apiKey = process.env.EMAIL_API_KEY || '';
+        const senderEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios Website" },
+                to: adminEmails.map(adminEmail => ({ email: adminEmail })),
+                replyTo: { email, name },
+                subject: `New website inquiry from ${name}`,
+                htmlContent
+            })
+        });
+
+        logger.info(`Contact form submission email sent for ${email}`);
+    } catch (error) {
+        logger.error(`Error sending contact form email for ${email}:`, error);
+        throw error;
+    }
+};

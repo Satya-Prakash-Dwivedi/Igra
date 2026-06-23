@@ -590,3 +590,54 @@ export const sendContactFormEmail = async (contactData: any) => {
         throw error;
     }
 };
+
+export const sendNewUserAdminNotification = async (user: any) => {
+    // Fetch all admins from DB
+    const defaultAdminEmail = process.env.DEFAULT_FROM_EMAIL || '';
+    const admins = await User.find({ role: 'admin' }).select('email').lean();
+    const adminEmails = Array.from(new Set([
+        defaultAdminEmail,
+        ...admins.map(a => a.email)
+    ])).filter(Boolean);
+
+    const signupAt = new Date().toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        dateStyle: "medium",
+        timeStyle: "short",
+    });
+
+    const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #007bff;">New User Signup Alert!</h2>
+            <p>A new user has just registered on the platform.</p>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0 0 10px 0;"><strong>Name:</strong> ${user.name}</p>
+                <p style="margin: 0 0 10px 0;"><strong>Email:</strong> ${user.email}</p>
+                <p style="margin: 0;"><strong>Signed up at:</strong> ${signupAt}</p>
+            </div>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/admin/users" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View in Admin Dashboard</a>
+            </div>
+        </div>
+    `;
+
+    try {
+        const apiKey = process.env.EMAIL_API_KEY || '';
+        const senderEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios Platform" },
+                to: adminEmails.map(adminEmail => ({ email: adminEmail })),
+                subject: `🚀 New User Signup: ${user.name}`,
+                htmlContent
+            })
+        });
+
+        logger.info(`New user admin notification sent for ${user.email}`);
+    } catch (error) {
+        logger.error(`Error sending new user admin notification for ${user.email}:`, error);
+    }
+};

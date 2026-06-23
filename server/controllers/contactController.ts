@@ -4,7 +4,8 @@ import logger from '../utils/logger.js';
 
 export const submitContactForm = async (req: Request, res: Response): Promise<void> => {
     try {
-        const payload = req.body || {};
+        // Framer sometimes nests the form fields under `data`
+        const payload = req.body?.data || req.body || {};
 
         // Helper to find a field by a list of possible names
         const getField = (keys: string[]) => {
@@ -31,10 +32,15 @@ export const submitContactForm = async (req: Request, res: Response): Promise<vo
         const message = explicitMessage || businessMsg;
 
         const source = getField(['Source', 'source']) || 'Contact Page';
-        const website = getField(['Website', 'website', 'websiteUrl']); // Honeypot field
+        
+        // We will use a dedicated hidden field for honeypot if you add one (e.g., 'bot_field')
+        const honeypot = getField(['bot_field', 'honeypot']); 
+        
+        // We also want to log the raw payload to figure out what Framer is sending
+        logger.info("Received Contact Form Payload:", JSON.stringify(payload));
 
         // 1. Honeypot check
-        if (website) {
+        if (honeypot) {
             // Silently pretend it worked for bots
             res.status(200).json({ success: true, message: 'Contact form submitted successfully.' });
             return;

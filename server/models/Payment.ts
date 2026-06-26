@@ -12,8 +12,11 @@ export enum PaymentStatus {
 export interface IPayment extends Document {
   userId: Types.ObjectId;
   provider: string;
-  paypalOrderId: string;
+  paypalOrderId?: string;
   paypalCaptureId?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
   amountCents: number;
   currency: string;
   creditsPurchased: number;
@@ -36,14 +39,23 @@ const paymentSchema = new Schema<IPayment>(
     provider: {
       type: String,
       default: 'paypal',
+      enum: ['paypal', 'razorpay'],
     },
     paypalOrderId: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
       index: true,
     },
     paypalCaptureId: String,
+    razorpayOrderId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+    razorpayPaymentId: String,
+    razorpaySignature: String,
     amountCents: {
       type: Number,
       required: true,

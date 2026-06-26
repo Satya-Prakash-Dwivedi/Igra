@@ -37,6 +37,11 @@ export const register = asyncHandler(async(req: Request, res: Response) => {
     // Send the verification email
     try {
         await emailService.sendVerificationEmail(user.email, verificationToken);
+        
+        // Notify admins asynchronously (fire and forget)
+        emailService.sendNewUserAdminNotification(user).catch(err => 
+            logger.error('Failed to send new user admin notification:', err)
+        );
     } catch (error) {
         // If email fails, delete the created user so they can try again
         await User.findByIdAndDelete(user._id);

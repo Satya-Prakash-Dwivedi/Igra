@@ -31,3 +31,18 @@ export const setRefreshTokenCookie = (res: Response, refreshToken : string) => {
         path: '/'
     });
 };
+
+import { OAuth2Client } from 'google-auth-library';
+
+export const verifyGoogleToken = async (idToken: string) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) throw new Error('Google Client ID is not configured');
+    
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({
+        idToken,
+        audience: clientId,
+    });
+    
+    return ticket.getPayload();
+};

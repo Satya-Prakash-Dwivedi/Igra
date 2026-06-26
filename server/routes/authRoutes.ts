@@ -7,6 +7,7 @@ const router = Router();
 // POST /api/v1/auth/register
 router.post('/register', authController.register);
 router.post('/login', authController.login);
+router.post('/google', authController.googleLogin);
 router.get('/profile', authenticate, authController.getProfile);
 router.get('/refresh', authController.refresh);
 router.post('/logout', authController.logout);

@@ -11,12 +11,14 @@ export const getCreditPacks = asyncHandler(async (req: AuthRequest, res: Respons
 
 // ─── Create Purchase ──────────────────────────────────────────
 export const createPurchase = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { packId, amountDollars } = req.body;
+  const { packId, amountDollars, provider, targetCurrency } = req.body;
   const result = await billingService.createPurchase(
     req.user!._id.toString(),
     packId,
     (req as any).idempotencyKey as string,
-    amountDollars
+    amountDollars,
+    provider || 'paypal',
+    targetCurrency
   );
   res.status(201).json({ success: true, data: result });
 });
@@ -24,7 +26,14 @@ export const createPurchase = asyncHandler(async (req: AuthRequest, res: Respons
 // ─── Capture Purchase ─────────────────────────────────────────
 export const capturePurchase = asyncHandler(async (req: AuthRequest, res: Response) => {
   const id = req.params.id as string;
-  const payment = await billingService.capturePurchase(id, req.user!._id.toString());
+  const { razorpayPaymentId, razorpayOrderId, razorpaySignature } = req.body;
+  const razorpayData = razorpayPaymentId && razorpayOrderId ? {
+    razorpayPaymentId,
+    razorpayOrderId,
+    razorpaySignature,
+  } : undefined;
+
+  const payment = await billingService.capturePurchase(id, req.user!._id.toString(), razorpayData);
   res.json({ success: true, data: payment });
 });
 
@@ -49,6 +58,19 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
   const paypalOrderId = resource?.id || resource?.supplementary_data?.related_ids?.order_id;
   if (paypalOrderId) {
     await billingService.handlePayPalWebhook(paypalOrderId, event_type);
+  }
+  res.status(200).json({ received: true });
+});
+
+// ─── Razorpay Webhook ─────────────────────────────────────────
+export const handleRazorpayWebhook = asyncHandler(async (req: Request, res: Response) => {
+  const event = req.body.event;
+  const payload = req.body.payload?.payment?.entity || req.body.payload?.order?.entity;
+  const razorpayOrderId = payload?.order_id || payload?.id;
+  const razorpayPaymentId = req.body.payload?.payment?.entity?.id || '';
+
+  if ((event === 'payment.captured' || event === 'order.paid') && razorpayOrderId) {
+    await billingService.handleRazorpayWebhook(razorpayOrderId, razorpayPaymentId);
   }
   res.status(200).json({ received: true });
 });

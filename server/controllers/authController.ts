@@ -116,6 +116,96 @@ export const login = asyncHandler(async(req: Request, res: Response) => {
     });
 });
 
+export const googleLogin = asyncHandler(async (req: Request, res: Response) => {
+    const { credential } = req.body;
+    if (!credential) {
+        res.status(400);
+        throw new Error('Google credential is required');
+    }
+
+    const payload = await authService.verifyGoogleToken(credential);
+    if (!payload || !payload.email) {
+        res.status(401);
+        throw new Error('Invalid Google token');
+    }
+
+    const { email, sub: googleId, name, given_name, family_name, picture, email_verified } = payload;
+    
+    // 1. Check if user exists by googleId
+    let user = await User.findOne({ googleId });
+    
+    // 2. If no googleId, check by email to link accounts
+    if (!user) {
+        user = await User.findOne({ email });
+        if (user) {
+            user.googleId = googleId;
+            // Mark email verified if google says it's verified and wasn't before
+            if (email_verified && !user.isVerified) {
+                user.isVerified = true;
+                user.verificationToken = undefined;
+                user.verificationTokenExpires = undefined;
+            }
+            await user.save();
+        } else {
+            // 3. User doesn't exist, create new
+            user = await User.create({
+                email,
+                name: name || 'User',
+                firstName: given_name,
+                lastName: family_name,
+                avatar: picture || 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
+                googleId,
+                isVerified: email_verified || false,
+                isActive: true,
+                role: 'user',
+                // No password provided
+            });
+            
+            // Notify admins asynchronously (fire and forget)
+            emailService.sendNewUserAdminNotification(user).catch(err => 
+                logger.error('Failed to send new user admin notification (Google Login):', err)
+            );
+        }
+    }
+
+    if (!user.isActive) {
+        res.status(403);
+        throw new Error('Account is disabled, Please contact support.');
+    }
+
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    const { access_token, refresh_token } = authService.generateTokens(user.id);
+    authService.setRefreshTokenCookie(res, refresh_token);
+    
+    if (user.avatar) {
+        const normalized = await normalizeAssetUrl(user.avatar);
+        if (normalized !== user.avatar) {
+            (user as any).avatar = normalized;
+            await (user as any).save();
+        }
+    }
+
+    res.json({
+        success: true,
+        data: {
+            user: {
+                id: user.id,
+                name: user.name,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                avatar: user.avatar,
+                role: user.role,
+                credits: await creditService.getBalance(user.id),
+            },
+            access_token,
+        },
+        message: "Google Login Successful",
+    });
+});
+
 export const getProfile = asyncHandler(async(req: AuthRequest, res: Response) => {
     const user = req.user!;
     

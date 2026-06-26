@@ -10,7 +10,8 @@ export interface IUser extends Document {
   firstName?: string;
   lastName?: string;
   email: string;
-  password: string;
+  password?: string;
+  googleId?: string;
   avatar: string;
   role: 'user' | 'admin' | 'staff';
   isVerified: boolean;
@@ -64,9 +65,20 @@ const userSchema = new Schema<IUser>(
       trim: true,
       match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email address'],
     },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      select: false,
+    },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: [
+        function (this: any) {
+          return !this.googleId;
+        },
+        'Password is required for email/password login',
+      ],
       minlength: [8, 'Password must be at least 8 characters'],
       select: false, 
     },
@@ -134,8 +146,8 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.pre<IUser>('save', async function(){
-  // Only hash the password if it's new or modified
-  if(!this.isModified('password')){
+  // Only hash the password if it's new or modified and it exists
+  if(!this.isModified('password') || !this.password){
     return;
   }
   try {
@@ -148,6 +160,7 @@ userSchema.pre<IUser>('save', async function(){
 
 // Method to compare password for login
 userSchema.methods.comparePassword = async function (enteredPassword : string) : Promise<boolean>{
+  if (!this.password) return false;
   return await bcrypt.compare(enteredPassword, this.password);
 };
 

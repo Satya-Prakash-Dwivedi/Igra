@@ -12,7 +12,7 @@ const toneEnum = z.enum(['Funny', 'Elegant', 'Serious', 'Casual', 'Professional'
 export const createChannelSchema = z.object({
     name: z.string().min(1, 'Channel name is required').max(256),
     channelUrl: z.string().url('channelUrl must be a valid URL'),
-    logo: z.string().url('logo must be a valid URL').optional(),
+    logo: z.string().optional(),
     brandColors: z
         .tuple([hexColor, hexColor, hexColor])
         .optional(),
@@ -25,7 +25,7 @@ export const createChannelSchema = z.object({
 export const updateChannelSchema = z.object({
     name: z.string().min(1).max(256).optional(),
     channelUrl: z.string().url('channelUrl must be a valid URL').optional(),
-    logo: z.string().url('logo must be a valid URL').optional(),
+    logo: z.string().optional(),
     brandColors: z
         .tuple([hexColor, hexColor, hexColor])
         .optional(),

@@ -179,6 +179,7 @@ export async function submitOrder(orderId: string, userId: string, idempotencyKe
 
 
   await auditService.appendOrderEvent(orderId, 'SUBMITTED', { totalCredits }, userId);
+  await notifyStatusChange(orderId, OrderStatus.UNDER_REVIEW);
 
   // Trigger Email Notifications (Client & Admin)
   const fullUser = await User.findById(userId).select('name email').lean();
@@ -206,10 +207,12 @@ export async function reviewOrder(
     order.assignedTo = new mongoose.Types.ObjectId(adminId);
     await order.save();
     await auditService.appendOrderEvent(orderId, 'ACCEPTED', {}, adminId);
+    await notifyStatusChange(orderId, OrderStatus.IN_PROGRESS);
   } else if (action === 'REJECT') {
     order.status = OrderStatus.CANCELLED;
     await order.save();
     await auditService.appendOrderEvent(orderId, 'REJECTED', {}, adminId);
+    await notifyStatusChange(orderId, OrderStatus.CANCELLED);
     // Refund credits
     const wallet = await creditService.getOrCreateWallet(order.userId);
     await creditService.appendLedgerEntry({
@@ -271,6 +274,7 @@ export async function deliverOrder(orderId: string, adminId: string) {
     order.status = OrderStatus.AWAITING_APPROVAL;
     await order.save();
     await auditService.appendOrderEvent(orderId, 'ORDER_DELIVERED', {}, adminId);
+    await notifyStatusChange(orderId, OrderStatus.AWAITING_APPROVAL);
 
     // Trigger Email Notification (Client)
     const fullUser = await User.findById(order.userId).select('name email').lean();
@@ -309,6 +313,7 @@ export async function completeReview(orderId: string, userId: string) {
   order.completedAt = new Date();
   await order.save();
   await auditService.appendOrderEvent(orderId, 'COMPLETED', {}, userId);
+  await notifyStatusChange(orderId, OrderStatus.COMPLETED);
 
   // Trigger Delivery Acceptance Emails (Client & Admin)
   const fullUser = await User.findById(userId).select('name email').lean();
@@ -333,6 +338,7 @@ export async function finalizeOrder(orderId: string, adminId: string) {
   order.completedAt = new Date();
   await order.save();
   await auditService.appendOrderEvent(orderId, 'ORDER_COMPLETED', {}, adminId);
+  await notifyStatusChange(orderId, OrderStatus.COMPLETED);
   return order;
 }
 
@@ -440,6 +446,7 @@ export async function requestRevision(orderItemId: string, userId: string, notes
     order.status = OrderStatus.IN_PROGRESS;
     await order.save();
     await auditService.appendOrderEvent(order._id.toString(), 'REVISION_REOPENED', { itemId: orderItemId }, userId);
+    await notifyStatusChange(order._id.toString(), OrderStatus.IN_PROGRESS);
   }
 
   // Send revision request email to admin
@@ -522,6 +529,7 @@ export async function cancelOrder(orderId: string, actorId: string) {
   }
 
   await auditService.appendOrderEvent(orderId, 'CANCELLED', {}, actorId);
+  await notifyStatusChange(orderId, OrderStatus.CANCELLED);
   return order;
 }
 
@@ -692,6 +700,7 @@ async function syncOrderStatus(orderId: string, actorId: string) {
     order.completedAt = new Date();
     await order.save();
     await auditService.appendOrderEvent(orderId, 'COMPLETED', {}, actorId);
+    await notifyStatusChange(orderId, OrderStatus.COMPLETED);
 
     // Trigger Delivery Acceptance Emails if completed by client
     if (order.userId.toString() === actorId) {
@@ -707,6 +716,7 @@ async function syncOrderStatus(orderId: string, actorId: string) {
     order.status = OrderStatus.AWAITING_APPROVAL;
     await order.save();
     await auditService.appendOrderEvent(orderId, 'AWAITING_APPROVAL', {}, actorId);
+    await notifyStatusChange(orderId, OrderStatus.AWAITING_APPROVAL);
 
     // Trigger Email Notification (Client)
     const fullUser = await User.findById(order.userId).select('name email').lean();
@@ -715,5 +725,19 @@ async function syncOrderStatus(orderId: string, actorId: string) {
         console.error('Failed to send final assets delivery email:', err);
       });
     }
+  }
+}
+
+// ─── Internal: Trigger Status Update Email ────────────────────
+async function notifyStatusChange(orderId: string, newStatus: string) {
+  try {
+    const order = await Order.findById(orderId).lean();
+    if (!order) return;
+    const user = await User.findById(order.userId).select('name email').lean();
+    if (user) {
+      await emailService.sendOrderStatusUpdateEmail(order, user, newStatus);
+    }
+  } catch (error) {
+    console.error('Failed to send status update email:', error);
   }
 }

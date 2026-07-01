@@ -203,6 +203,7 @@ export async function reviewOrder(
 
   if (action === 'ACCEPT') {
     order.status = OrderStatus.IN_PROGRESS;
+    order.approvedAt = new Date();
     order.assignedTo = new mongoose.Types.ObjectId(adminId);
     await order.save();
     await auditService.appendOrderEvent(orderId, 'ACCEPTED', {}, adminId);
@@ -672,9 +673,18 @@ export async function listAllOrders(status?: string, assignedTo?: string, page =
     Order.countDocuments(filter),
   ]);
 
+  const orderIds = orders.map(o => o._id);
+  const OrderItem = (await import('../models/OrderItem.js')).default;
+  const allItems = await OrderItem.find({ orderId: { $in: orderIds } }).lean();
+
+  const ordersWithItems = orders.map(order => {
+    const items = allItems.filter(i => i.orderId.toString() === order._id.toString());
+    return { ...order, items };
+  });
+
   const pages = Math.ceil(total / limit);
 
-  return { orders, total, page, pages };
+  return { orders: ordersWithItems, total, page, pages };
 }
 
 

@@ -38,6 +38,7 @@ export interface IOrder extends Document {
   completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  approvedAt?: Date;
 }
 
 // ─── Schema ───────────────────────────────────────────────────

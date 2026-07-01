@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-// Validates a single CSS hex color string (e.g. "#e11d48" or "#fff")
+// Validates a single CSS hex color string (e.g. "#FE4331" or "#fff")
 const hexColor = z
     .string()
-    .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'Each brand color must be a valid hex color (e.g. #fff or #e11d48)');
+    .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'Each brand color must be a valid hex color (e.g. #fff or #FE4331)');
 
 const paceEnum = z.enum(['Slow', 'Normal', 'Fast', 'Super']);
 const toneEnum = z.enum(['Funny', 'Elegant', 'Serious', 'Casual', 'Professional', 'Informational']);

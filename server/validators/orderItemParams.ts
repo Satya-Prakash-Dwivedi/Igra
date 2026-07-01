@@ -52,6 +52,7 @@ const customParams = genericParams.extend({
 
 export const ORDER_ITEM_VALIDATORS: Record<OrderItemKind, z.ZodType> = {
   [OrderItemKind.VIDEO_EDIT]:       videoEditParams,
+  [OrderItemKind.GAMING_STREAMS]:   videoEditParams,
   [OrderItemKind.THUMBNAIL]:        thumbnailParams,
   [OrderItemKind.INTRO]:            genericParams,
   [OrderItemKind.OUTRO]:            genericParams,

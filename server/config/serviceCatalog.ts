@@ -16,12 +16,20 @@ export interface ServiceDef {
 // Pricing and required inputs per service kind.
 export const SERVICE_CATALOG: Record<OrderItemKind, ServiceDef> = {
   [OrderItemKind.VIDEO_EDIT]: {
-    label: 'Video Editing',
+    label: 'Talking head/Vlog',
     baseCredits: 70,
     defaultRevisions: 2,
     requiredParams: ['packageTier', 'deliverySpeed'],
     description: 'Professional video editing with tiered packages',
     pricingText: 'From 70 credits',
+  },
+  [OrderItemKind.GAMING_STREAMS]: {
+    label: 'Gaming/Streams',
+    baseCredits: 60,
+    defaultRevisions: 2,
+    requiredParams: ['packageTier', 'deliverySpeed'],
+    description: 'Professional post-production for gaming content',
+    pricingText: 'From 60 credits',
   },
   [OrderItemKind.THUMBNAIL]: {
     label: 'Thumbnail Design',

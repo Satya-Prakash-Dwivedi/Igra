@@ -98,7 +98,6 @@ export async function removeItem(orderId: string, itemId: string, userId: string
   order.totalCreditsQuoted = items.reduce((sum, i) => sum + i.creditsQuoted, 0);
   await order.save();
 
-  await auditService.appendOrderEvent(orderId, 'ITEM_REMOVED', { itemId }, userId);
   return order;
 }
 
@@ -733,11 +732,14 @@ async function notifyStatusChange(orderId: string, newStatus: string) {
   try {
     const order = await Order.findById(orderId).lean();
     if (!order) return;
+    
+    await auditService.appendOrderEvent(orderId, 'STATUS_CHANGED', { status: newStatus }, order.userId.toString());
+
     const user = await User.findById(order.userId).select('name email').lean();
     if (user) {
       await emailService.sendOrderStatusUpdateEmail(order, user, newStatus);
     }
   } catch (error) {
-    console.error('Failed to send status update email:', error);
+    console.error('Failed to send status update email or log event:', error);
   }
 }

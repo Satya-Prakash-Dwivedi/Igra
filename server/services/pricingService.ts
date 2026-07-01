@@ -11,16 +11,18 @@ export function computePricingSnapshot(
   let base = def.baseCredits;
   const modifiers: { label: string; delta: number }[] = [];
 
-  if (kind === OrderItemKind.VIDEO_EDIT) {
+  if (kind === OrderItemKind.VIDEO_EDIT || kind === OrderItemKind.GAMING_STREAMS) {
     const tier = params.packageTier || 'BASIC';
-    if (tier === 'BASIC') {
-      base = 70;
-    } else if (tier === 'STANDARD') {
-      base = 105;
-    } else if (tier === 'PREMIUM') {
-      base = 130;
+    if (kind === OrderItemKind.VIDEO_EDIT) {
+      if (tier === 'BASIC') base = 70;
+      else if (tier === 'STANDARD') base = 105;
+      else if (tier === 'PREMIUM') base = 130;
+      else base = 70;
     } else {
-      base = 70;
+      if (tier === 'BASIC') base = 60;
+      else if (tier === 'STANDARD') base = 80;
+      else if (tier === 'PREMIUM') base = 100;
+      else base = 60;
     }
 
     if (params.deliverySpeed === 'EXPRESS') {

@@ -641,3 +641,75 @@ export const sendNewUserAdminNotification = async (user: any) => {
         logger.error(`Error sending new user admin notification for ${user.email}:`, error);
     }
 };
+
+export const sendOrderStatusUpdateEmail = async (order: any, user: any, newStatus: string) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const orderUrl = `${clientUrl}/orders/${order._id}`;
+    const adminUrl = `${clientUrl}/admin/orders/${order._id}`;
+    const friendlyStatus = newStatus.replace(/_/g, ' ');
+
+    const defaultAdminEmail = process.env.DEFAULT_FROM_EMAIL || '';
+    const admins = await User.find({ role: 'admin' }).select('email').lean();
+    const adminEmails = Array.from(new Set([
+        defaultAdminEmail,
+        ...admins.map(a => a.email)
+    ])).filter(Boolean);
+
+    // Client Email
+    const clientHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2>Order Status Update</h2>
+            <p>Hi ${user.name},</p>
+            <p>The status of your order <strong>#${order.orderNumber}</strong> has been updated to <strong>${friendlyStatus}</strong>.</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${orderUrl}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Order</a>
+            </div>
+            <p>Thank you for choosing Igra Studios!</p>
+        </div>
+    `;
+
+    // Admin Email
+    const adminHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2>Order Status Update</h2>
+            <p>The status of order <strong>#${order.orderNumber}</strong> has been updated to <strong>${friendlyStatus}</strong>.</p>
+            <p><strong>Client:</strong> ${user.name} (${user.email})</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${adminUrl}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Review Order</a>
+            </div>
+        </div>
+    `;
+
+    try {
+        const apiKey = process.env.EMAIL_API_KEY || '';
+        const senderEmail = process.env.DEFAULT_FROM_EMAIL || '';
+
+        // Send to Client
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios" },
+                to: [{ email: user.email }],
+                subject: `Order Update: #${order.orderNumber} is now ${friendlyStatus}`,
+                htmlContent: clientHtml
+            })
+        });
+
+        // Send to Admin
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: "Igra Studios" },
+                to: adminEmails.map(email => ({ email })),
+                subject: `Order Update: #${order.orderNumber} is now ${friendlyStatus}`,
+                htmlContent: adminHtml
+            })
+        });
+
+        logger.info(`Order status update email sent for #${order.orderNumber}`);
+    } catch (error) {
+        logger.error(`Error sending order status update email for #${order.orderNumber}:`, error);
+    }
+};

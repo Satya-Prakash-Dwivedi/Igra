@@ -3,6 +3,7 @@ import { Schema, model, Document, Types } from 'mongoose';
 // ─── Enums ────────────────────────────────────────────────────
 export enum OrderItemKind {
   VIDEO_EDIT       = 'VIDEO_EDIT',
+  GAMING_STREAMS   = 'GAMING_STREAMS',
   THUMBNAIL        = 'THUMBNAIL',
   INTRO            = 'INTRO',
   OUTRO            = 'OUTRO',

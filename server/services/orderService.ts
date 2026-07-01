@@ -411,9 +411,6 @@ export async function approveItem(orderItemId: string, userId: string) {
 export async function requestRevision(orderItemId: string, userId: string, notes?: string, assetIds?: string[]) {
   const item = await OrderItem.findById(orderItemId);
   if (!item) throw new Error('Item not found');
-  if (item.usedRevisions >= item.allowedRevisions) {
-    throw new Error(`Revision limit reached (${item.allowedRevisions}). A new paid item is required.`);
-  }
 
   // Associate files with item as INPUT assets
   if (assetIds && assetIds.length > 0) {

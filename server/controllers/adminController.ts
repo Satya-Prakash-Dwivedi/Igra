@@ -17,30 +17,65 @@ import * as creditService from '../services/creditService.js';
 import CreditLedgerEntry, { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.js';
 import CreditWallet from '../models/CreditWallet.js';
 
-// ─── Dashboard Statistics (Gap 4: single $facet round-trip) ───
+// ─── Dashboard Statistics ───────────────────────────────────────
 export const getDashboardStats = asyncHandler(async (_req: AuthRequest, res: Response) => {
-    // One aggregation replaces four separate countDocuments calls.
-    // $facet runs all branches in parallel on the DB side — one network round-trip.
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const [result] = await Order.aggregate([
         {
             $facet: {
                 totalOrders:   [{ $count: 'count' }],
-                pendingReview: [{ $match: { status: 'UNDER_REVIEW' } }, { $count: 'count' }],
-                inProgress:    [{ $match: { status: 'IN_PROGRESS' } }, { $count: 'count' }],
-                completed:     [{ $match: { status: 'COMPLETED' } }, { $count: 'count' }],
+                statusCounts:  [{ $group: { _id: "$status", count: { $sum: 1 } } }],
                 averageRating: [{ $match: { rating: { $exists: true, $ne: null } } }, { $group: { _id: null, avg: { $avg: '$rating' } } }],
+                revenue30Days: [
+                    { $match: { submittedAt: { $gte: thirtyDaysAgo } } },
+                    { $group: {
+                        _id: { $dateToString: { format: "%Y-%m-%d", date: "$submittedAt" } },
+                        total: { $sum: "$totalCreditsCaptured" }
+                    }},
+                    { $sort: { _id: 1 } }
+                ]
             },
         },
     ]);
+
+    // Fill in missing days for a smooth 30-day chart
+    const revenueMap = new Map<string, number>();
+    result.revenue30Days.forEach((item: any) => {
+        revenueMap.set(item._id, item.total || 0);
+    });
+
+    const revenueTimeline = [];
+    for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        revenueTimeline.push({
+            date: dateStr,
+            revenue: revenueMap.get(dateStr) || 0
+        });
+    }
+
+    const statusMap = new Map<string, number>();
+    result.statusCounts.forEach((item: any) => {
+        statusMap.set(item._id, item.count);
+    });
 
     res.json({
         success: true,
         data: {
             totalOrders:   result.totalOrders[0]?.count   ?? 0,
-            pendingReview: result.pendingReview[0]?.count ?? 0,
-            inProgress:    result.inProgress[0]?.count    ?? 0,
-            completed:     result.completed[0]?.count     ?? 0,
+            pendingReview: statusMap.get('UNDER_REVIEW') ?? 0,
+            inProgress:    statusMap.get('IN_PROGRESS')  ?? 0,
+            completed:     statusMap.get('COMPLETED')    ?? 0,
+            draft:         statusMap.get('DRAFT')        ?? 0,
+            pendingPayment:statusMap.get('PENDING_PAYMENT') ?? 0,
+            finalizing:    statusMap.get('FINALIZING')   ?? 0,
+            awaitingApproval: statusMap.get('AWAITING_APPROVAL') ?? 0,
+            cancelled:     statusMap.get('CANCELLED')    ?? 0,
             averageRating: result.averageRating[0]?.avg   ?? 0,
+            revenueTimeline,
         },
     });
 });

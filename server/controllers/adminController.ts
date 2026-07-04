@@ -13,6 +13,9 @@ import {
     transitionStatusSchema,
     updateSupportStatusSchema,
 } from '../validators/adminValidator.js';
+import * as creditService from '../services/creditService.js';
+import CreditLedgerEntry, { LedgerReason, LedgerRefType } from '../models/CreditLedgerEntry.js';
+import CreditWallet from '../models/CreditWallet.js';
 
 // ─── Dashboard Statistics (Gap 4: single $facet round-trip) ───
 export const getDashboardStats = asyncHandler(async (_req: AuthRequest, res: Response) => {
@@ -51,6 +54,37 @@ export const listAllOrders = asyncHandler(async (req: AuthRequest, res: Response
 
     const result = await orderService.listAllOrders(status, assignedTo, page, limit);
     res.json({ success: true, data: result });
+});
+
+// ─── Custom Order Deadline ────────────────────────────────────────
+export const updateOrderDeadline = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = req.params.id as string;
+    const { deadline } = req.body; // ISO date string or null
+    
+    let parsedDeadline: Date | null = null;
+    if (deadline) {
+        parsedDeadline = new Date(deadline);
+        if (isNaN(parsedDeadline.getTime())) {
+            res.status(400);
+            throw new Error('Invalid deadline date');
+        }
+    } else {
+        parsedDeadline = undefined as any; // to unset or let mongoose handle null? Wait, we can use $unset or $set.
+    }
+    
+    const updateQuery = deadline ? { $set: { customDeadline: parsedDeadline } } : { $unset: { customDeadline: 1 } };
+    
+    const order = await Order.findByIdAndUpdate(
+        id,
+        updateQuery,
+        { new: true }
+    );
+    if (!order) {
+        res.status(404);
+        throw new Error('Order not found');
+    }
+    
+    res.json({ success: true, data: { order } });
 });
 
 // ─── Review Order (Gap 2: validated action) ───────────────────
@@ -236,6 +270,78 @@ export const assignStaff = asyncHandler(async (req: AuthRequest, res: Response) 
 // ─── Remove Staff ─────────────────────────────────────────────
 export const removeStaff = asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.params.id as string;
-    const user = await userService.removeStaff(userId);
+    const user = await userService.getUserDetail(userId);
     res.json({ success: true, data: { user } });
+});
+
+// ─── Grant Credits ────────────────────────────────────────────────
+export const grantCredits = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.params.id as string;
+    const { amount, notes } = req.body;
+    
+    if (typeof amount !== 'number' || amount <= 0) {
+        res.status(400);
+        throw new Error('Invalid amount');
+    }
+    
+    const wallet = await creditService.getOrCreateWallet(userId);
+    
+    const entry = await creditService.appendLedgerEntry({
+        walletId: wallet._id.toString(),
+        delta: amount,
+        reason: LedgerReason.ADJUSTMENT,
+        refType: LedgerRefType.ADMIN,
+        refId: req.user!._id.toString(),
+        notes: notes || undefined,
+        idempotencyKey: `admin-grant-${userId}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+    });
+    
+    res.json({ success: true, data: { entry, newBalance: entry.balanceAfter } });
+});
+
+// ─── Global Ledger ────────────────────────────────────────────────
+export const listGlobalLedger = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = Number(req.query.page || '1');
+    const limit = Number(req.query.limit || '20');
+    const reason = req.query.reason as string | undefined;
+    const search = req.query.search as string | undefined;
+    
+    const query: any = {};
+    if (reason) {
+        query.reason = reason;
+    }
+    
+    if (search) {
+        const users = await User.find({
+            $or: [
+                { name: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } }
+            ]
+        }).select('_id');
+        
+        const userIds = users.map(u => u._id);
+        const wallets = await CreditWallet.find({ userId: { $in: userIds } }).select('_id');
+        const walletIds = wallets.map(w => w._id);
+        
+        query.walletId = { $in: walletIds };
+    }
+    
+    const entries = await CreditLedgerEntry.find(query)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate({
+            path: 'walletId',
+            populate: {
+                path: 'userId',
+                select: 'name email avatar'
+            }
+        });
+        
+    const total = await CreditLedgerEntry.countDocuments(query);
+    
+    res.json({
+        success: true,
+        data: { entries, total, page, limit }
+    });
 });

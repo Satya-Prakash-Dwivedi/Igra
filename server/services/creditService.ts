@@ -9,6 +9,7 @@ interface AppendLedgerOpts {
   reason: LedgerReason;
   refType: LedgerRefType;
   refId: mongoose.Types.ObjectId | string;
+  notes?: string;
   idempotencyKey: string;
 }
 
@@ -61,6 +62,7 @@ export async function appendLedgerEntry(opts: AppendLedgerOpts) {
         reason: opts.reason,
         refType: opts.refType,
         refId: opts.refId,
+        notes: opts.notes,
         idempotencyKey: opts.idempotencyKey,
         hashPrev,
         hashSelf,

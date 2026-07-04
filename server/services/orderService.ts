@@ -42,12 +42,12 @@ export async function addItem(
   assetIds: string[] = []
 ) {
   const order = await Order.findOne({ _id: orderId, userId, status: OrderStatus.DRAFT });
-  if (!order) throw new Error('Order not found or not in DRAFT status');
+  if (!order) throw Object.assign(new Error('Order not found or not in DRAFT status'), { statusCode: 404 });
 
   // Validate params
   const validation = validateOrderItemParams(kind, params);
   if (!validation.success) {
-    throw new Error(`Invalid params: ${JSON.stringify(validation.error)}`);
+    throw Object.assign(new Error(`Invalid params: ${JSON.stringify(validation.error)}`), { statusCode: 400 });
   }
 
   // Compute pricing server-side
@@ -89,7 +89,7 @@ export async function addItem(
 // ─── Remove Item from Draft Order ──────────────────────────────
 export async function removeItem(orderId: string, itemId: string, userId: string) {
   const order = await Order.findOne({ _id: orderId, userId, status: OrderStatus.DRAFT });
-  if (!order) throw new Error('Order not found or not in DRAFT status');
+  if (!order) throw Object.assign(new Error('Order not found or not in DRAFT status'), { statusCode: 404 });
 
   await OrderItem.findByIdAndDelete(itemId);
 
@@ -110,7 +110,7 @@ export async function addAssetToItem(
   role: AssetRole = AssetRole.INPUT
 ) {
   const order = await Order.findById(orderId);
-  if (!order) throw new Error('Order not found');
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
   // Authorization check
   const actor = await User.findById(actorId);
@@ -118,11 +118,11 @@ export async function addAssetToItem(
   const isStaff = actor && ['admin', 'staff'].includes(actor.role);
 
   if (!isOwner && !isStaff) {
-    throw new Error('Unauthorized or order not found');
+    throw Object.assign(new Error('Unauthorized or order not found'), { statusCode: 404 });
   }
 
   const item = await OrderItem.findOne({ _id: itemId, orderId });
-  if (!item) throw new Error('Item not found');
+  if (!item) throw Object.assign(new Error('Item not found'), { statusCode: 404 });
 
   if (assetIds.length > 0) {
     const existingLinks = await AssetLink.find({ orderItemId: item._id, role })
@@ -146,10 +146,10 @@ export async function addAssetToItem(
 // ─── Submit Order (Capture Credits) ───────────────────────────
 export async function submitOrder(orderId: string, userId: string, idempotencyKey: string) {
   const order = await Order.findOne({ _id: orderId, userId, status: OrderStatus.DRAFT });
-  if (!order) throw new Error('Order not found or not in DRAFT status');
+  if (!order) throw Object.assign(new Error('Order not found or not in DRAFT status'), { statusCode: 404 });
 
   const items = await OrderItem.find({ orderId });
-  if (items.length === 0) throw new Error('Order has no items');
+  if (items.length === 0) throw Object.assign(new Error('Order has no items'), { statusCode: 400 });
 
   const totalCredits = items.reduce((sum, item) => sum + item.creditsQuoted, 0);
   const wallet = await creditService.getOrCreateWallet(userId);
@@ -199,7 +199,7 @@ export async function reviewOrder(
   action: 'ACCEPT' | 'REJECT' | 'REQUEST_INFO'
 ) {
   const order = await Order.findOne({ _id: orderId, status: OrderStatus.UNDER_REVIEW });
-  if (!order) throw new Error('Order not found or not under review');
+  if (!order) throw Object.assign(new Error('Order not found or not under review'), { statusCode: 404 });
 
   if (action === 'ACCEPT') {
     order.status = OrderStatus.IN_PROGRESS;
@@ -233,7 +233,7 @@ export async function reviewOrder(
 // ─── Admin: Assign Order ──────────────────────────────────────
 export async function assignOrder(orderId: string, adminId: string, staffId: string) {
   const order = await Order.findById(orderId);
-  if (!order) throw new Error('Order not found');
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
   order.assignedTo = new mongoose.Types.ObjectId(staffId);
   await order.save();
   await auditService.appendOrderEvent(orderId, 'ASSIGNED', { staffId }, adminId);
@@ -242,7 +242,7 @@ export async function assignOrder(orderId: string, adminId: string, staffId: str
 
 export async function deliverOrder(orderId: string, adminId: string) {
   const order = await Order.findById(orderId);
-  if (!order) throw new Error('Order not found');
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
   
   // Transition all non-terminal items to DELIVERED by stepping through intermediate states
   const items = await OrderItem.find({ orderId });
@@ -293,10 +293,10 @@ export async function deliverOrder(orderId: string, adminId: string) {
  */
 export async function completeReview(orderId: string, userId: string) {
   const order = await Order.findOne({ _id: orderId, userId });
-  if (!order) throw new Error('Order not found or not owned by user');
+  if (!order) throw Object.assign(new Error('Order not found or not owned by user'), { statusCode: 404 });
   
   if (order.status !== OrderStatus.AWAITING_APPROVAL) {
-    throw new Error('Order is not in review state');
+    throw Object.assign(new Error('Order is not in review state'), { statusCode: 400 });
   }
 
   // Also approve all pending items
@@ -332,7 +332,7 @@ export async function completeReview(orderId: string, userId: string) {
  */
 export async function finalizeOrder(orderId: string, adminId: string) {
   const order = await Order.findById(orderId);
-  if (!order) throw new Error('Order not found');
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
   order.status = OrderStatus.COMPLETED;
   order.completedAt = new Date();
@@ -349,11 +349,11 @@ export async function transitionItemStatus(
   actorId: string
 ) {
   const item = await OrderItem.findById(orderItemId);
-  if (!item) throw new Error('Item not found');
+  if (!item) throw Object.assign(new Error('Item not found'), { statusCode: 404 });
 
   const allowed = ITEM_TRANSITIONS[item.status as OrderItemStatus];
   if (!allowed.includes(newStatus)) {
-    throw new Error(`Cannot transition from ${item.status} to ${newStatus}`);
+    throw Object.assign(new Error(`Cannot transition from ${item.status} to ${newStatus}`), { statusCode: 400 });
   }
 
   const oldStatus = item.status;
@@ -394,9 +394,9 @@ export async function deliverItem(orderItemId: string, adminId: string) {
 // ─── User: Approve Item ───────────────────────────────────────
 export async function approveItem(orderItemId: string, userId: string) {
   const item = await OrderItem.findById(orderItemId);
-  if (!item) throw new Error('Item not found');
+  if (!item) throw Object.assign(new Error('Item not found'), { statusCode: 404 });
   if (item.status !== OrderItemStatus.DELIVERED) {
-    throw new Error('Item must be DELIVERED to approve');
+    throw Object.assign(new Error('Item must be DELIVERED to approve'), { statusCode: 400 });
   }
 
   item.status = OrderItemStatus.APPROVED;
@@ -411,7 +411,7 @@ export async function approveItem(orderItemId: string, userId: string) {
 // ─── User: Request Revision ───────────────────────────────────
 export async function requestRevision(orderItemId: string, userId: string, notes?: string, assetIds?: string[]) {
   const item = await OrderItem.findById(orderItemId);
-  if (!item) throw new Error('Item not found');
+  if (!item) throw Object.assign(new Error('Item not found'), { statusCode: 404 });
 
   // Associate files with item as INPUT assets
   if (assetIds && assetIds.length > 0) {
@@ -470,13 +470,13 @@ export async function requestRevision(orderItemId: string, userId: string, notes
 // ─── Admin: Refund Failed Item ────────────────────────────────
 export async function refundItem(orderItemId: string, adminId: string) {
   const item = await OrderItem.findById(orderItemId);
-  if (!item) throw new Error('Item not found');
+  if (!item) throw Object.assign(new Error('Item not found'), { statusCode: 404 });
   if (item.status !== OrderItemStatus.FAILED) {
-    throw new Error('Only FAILED items can be refunded');
+    throw Object.assign(new Error('Only FAILED items can be refunded'), { statusCode: 400 });
   }
 
   const order = await Order.findById(item.orderId);
-  if (!order) throw new Error('Order not found');
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
   const wallet = await creditService.getOrCreateWallet(order.userId.toString());
   await creditService.appendLedgerEntry({
@@ -496,11 +496,11 @@ export async function refundItem(orderItemId: string, adminId: string) {
 // ─── Cancel Order ─────────────────────────────────────────────
 export async function cancelOrder(orderId: string, actorId: string) {
   const order = await Order.findById(orderId);
-  if (!order) throw new Error('Order not found');
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
   const cancellable: OrderStatus[] = [OrderStatus.DRAFT, OrderStatus.PENDING_PAYMENT, OrderStatus.UNDER_REVIEW, OrderStatus.IN_PROGRESS];
   if (!cancellable.includes(order.status as OrderStatus)) {
-    throw new Error(`Cannot cancel order in ${order.status} status`);
+    throw Object.assign(new Error(`Cannot cancel order in ${order.status} status`), { statusCode: 400 });
   }
 
   order.status = OrderStatus.CANCELLED;
@@ -536,7 +536,7 @@ export async function getOrderDetail(orderId: string) {
     .populate('userId', 'name email avatar')
     .populate('assignedTo', 'name email avatar')
     .lean();
-  if (!order) throw new Error('Order not found');
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
   const itemsRaw = await OrderItem.find({ orderId }).lean();
   
@@ -606,7 +606,7 @@ export async function removeAssetFromItem(
   assetId: string
 ) {
   const order = await Order.findById(orderId);
-  if (!order) throw new Error('Order not found');
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
   // Authorization check
   const actor = await User.findById(actorId);
@@ -614,12 +614,12 @@ export async function removeAssetFromItem(
   const isStaff = actor && ['admin', 'staff'].includes(actor.role);
 
   if (!isOwner && !isStaff) {
-    throw new Error('Unauthorized or order not found');
+    throw Object.assign(new Error('Unauthorized or order not found'), { statusCode: 404 });
   }
 
   // Find the link
   const link = await AssetLink.findOne({ orderItemId: itemId, assetId });
-  if (!link) throw new Error('Asset link not found');
+  if (!link) throw Object.assign(new Error('Asset link not found'), { statusCode: 404 });
 
   // Delete the link
   await AssetLink.deleteOne({ _id: link._id });
@@ -645,11 +645,11 @@ export async function listOrders(userId: string, status?: string, page = 1, limi
 
   const total = await Order.countDocuments(filter);
 
-  // Attach item count per order
+  // Attach item count and items per order
   const ordersWithCounts = await Promise.all(
     orders.map(async (o) => {
-      const itemCount = await OrderItem.countDocuments({ orderId: o._id });
-      return { ...o, itemCount };
+      const items = await OrderItem.find({ orderId: o._id }).lean();
+      return { ...o, itemCount: items.length, items };
     })
   );
 
@@ -749,4 +749,27 @@ async function notifyStatusChange(orderId: string, newStatus: string) {
   } catch (error) {
     console.error('Failed to send status update email or log event:', error);
   }
+}
+
+// ─── Submit Review (Client) ───────────────────────────────────
+export async function submitReview(orderId: string, userId: string, rating: number, feedback: string) {
+  const order = await Order.findOne({ _id: orderId, userId });
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+  if (order.status !== OrderStatus.COMPLETED) {
+    throw Object.assign(new Error('Can only review completed orders'), { statusCode: 400 });
+  }
+
+  if (rating < 1 || rating > 5) {
+    throw Object.assign(new Error('Rating must be between 1 and 5'), { statusCode: 400 });
+  }
+
+  order.rating = rating;
+  if (feedback) {
+    order.feedback = feedback;
+  }
+  
+  await order.save();
+  await auditService.appendOrderEvent(orderId, 'REVIEW_SUBMITTED', { rating, feedback }, userId);
+
+  return order;
 }

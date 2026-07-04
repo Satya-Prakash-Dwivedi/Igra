@@ -173,9 +173,9 @@ export async function registerPart(
   sizeBytes: number = 0
 ) {
   const session = await UploadSession.findById(sessionId);
-  if (!session) throw new Error('Upload session not found');
+  if (!session) throw Object.assign(new Error('Upload session not found'), { statusCode: 404 });
   if (session.status !== UploadSessionStatus.ACTIVE) {
-    throw new Error('Upload session is not active');
+    throw Object.assign(new Error('Upload session is not active'), { statusCode: 400 });
   }
 
   // De-duplicate: check if part already registered
@@ -198,7 +198,7 @@ export async function registerPart(
  */
 export async function finalizeUpload(sessionId: string) {
   const session = await UploadSession.findById(sessionId);
-  if (!session) throw new Error('Upload session not found');
+  if (!session) throw Object.assign(new Error('Upload session not found'), { statusCode: 404 });
 
   // Idempotent: already completed
   if (session.status === UploadSessionStatus.COMPLETED) {
@@ -207,11 +207,11 @@ export async function finalizeUpload(sessionId: string) {
   }
 
   if (session.status !== UploadSessionStatus.ACTIVE) {
-    throw new Error('Upload session is not active');
+    throw Object.assign(new Error('Upload session is not active'), { statusCode: 400 });
   }
 
   const assetVersion = await AssetVersion.findById(session.assetVersionId);
-  if (!assetVersion) throw new Error('AssetVersion not found');
+  if (!assetVersion) throw Object.assign(new Error('AssetVersion not found'), { statusCode: 404 });
 
   const useS3 = session.storageProvider === 's3';
 
@@ -245,7 +245,7 @@ export async function finalizeUpload(sessionId: string) {
           uploadId: session.providerUploadId,
           error: serializeError(err) 
         });
-        throw new Error('S3 completion failed. This often happens if the ETag header was not exposed in S3 CORS settings.');
+        throw Object.assign(new Error('S3 completion failed. This often happens if the ETag header was not exposed in S3 CORS settings.'), { statusCode: 400 });
       }
     }
   } else {
@@ -266,7 +266,7 @@ export async function finalizeUpload(sessionId: string) {
       } catch (err) {
         writeStream.destroy();
         logger.error('upload.local_finalize_missing_part', { sessionId: session._id, partNumber: part.partNumber });
-        throw new Error(`Part ${part.partNumber} is missing from disk. Cannot finalize.`);
+        throw Object.assign(new Error(`Part ${part.partNumber} is missing from disk. Cannot finalize.`), { statusCode: 400 });
       }
     }
     writeStream.end();
@@ -294,7 +294,7 @@ export async function finalizeUpload(sessionId: string) {
 
 export async function getUploadStatus(sessionId: string) {
   const session = await UploadSession.findById(sessionId).lean();
-  if (!session) throw new Error('Upload session not found');
+  if (!session) throw Object.assign(new Error('Upload session not found'), { statusCode: 404 });
   return {
     status: session.status,
     totalParts: session.totalParts,
@@ -308,11 +308,11 @@ export async function getUploadStatus(sessionId: string) {
  */
 export async function resumeUploadSession(sessionId: string) {
   const session = await UploadSession.findById(sessionId);
-  if (!session) throw new Error('Upload session not found');
-  if (session.status !== UploadSessionStatus.ACTIVE) throw new Error('Session not active');
+  if (!session) throw Object.assign(new Error('Upload session not found'), { statusCode: 404 });
+  if (session.status !== UploadSessionStatus.ACTIVE) throw Object.assign(new Error('Session not active'), { statusCode: 400 });
 
   const assetVersion = await AssetVersion.findById(session.assetVersionId);
-  if (!assetVersion) throw new Error('AssetVersion not found');
+  if (!assetVersion) throw Object.assign(new Error('AssetVersion not found'), { statusCode: 404 });
 
   const providerUploadId = session.providerUploadId;
   const storageKey = assetVersion.storageKey;
@@ -368,7 +368,7 @@ export async function resumeUploadSession(sessionId: string) {
  */
 export async function createNewVersion(assetId: string, userId: string, fileName: string, fileSize: number, mimeType?: string) {
   const asset = await Asset.findById(assetId);
-  if (!asset) throw new Error('Asset not found');
+  if (!asset) throw Object.assign(new Error('Asset not found'), { statusCode: 404 });
 
   const lastVersion = await AssetVersion.findOne({ assetId }).sort({ versionNumber: -1 });
   const newVersionNumber = (lastVersion?.versionNumber || 0) + 1;
@@ -476,12 +476,12 @@ export async function createNewVersion(assetId: string, userId: string, fileName
  */
 export async function validateLocalPartUpload(sessionId: string, providerUploadId: string) {
   const session = await UploadSession.findById(sessionId);
-  if (!session) throw new Error('Upload session not found');
+  if (!session) throw Object.assign(new Error('Upload session not found'), { statusCode: 404 });
   if (session.providerUploadId !== providerUploadId) {
-    throw new Error('Invalid upload ID for this session');
+    throw Object.assign(new Error('Invalid upload ID for this session'), { statusCode: 401 });
   }
   if (session.status !== UploadSessionStatus.ACTIVE) {
-    throw new Error('Upload session is no longer active');
+    throw Object.assign(new Error('Upload session is no longer active'), { statusCode: 400 });
   }
   return session;
 }
@@ -491,7 +491,7 @@ export async function validateLocalPartUpload(sessionId: string, providerUploadI
  */
 export async function saveLocalPart(sessionId: string, partNumber: number, data: Buffer) {
   const session = await UploadSession.findById(sessionId);
-  if (!session) throw new Error('Session not found');
+  if (!session) throw Object.assign(new Error('Session not found'), { statusCode: 404 });
 
   const sessionChunksDir = path.join(CHUNKS_DIR, sessionId);
   await fs.mkdir(sessionChunksDir, { recursive: true });
@@ -540,10 +540,10 @@ export async function getAssetPermanentUrl(assetId: string): Promise<string> {
  */
 export async function getAssetDownloadUrl(assetId: string, download = false): Promise<string> {
   const asset = await Asset.findById(assetId);
-  if (!asset) throw new Error('Asset not found');
+  if (!asset) throw Object.assign(new Error('Asset not found'), { statusCode: 404 });
 
   const version = await AssetVersion.findById(asset.latestVersionId);
-  if (!version) throw new Error('Asset version not found');
+  if (!version) throw Object.assign(new Error('Asset version not found'), { statusCode: 404 });
 
   if (version.storageProvider === 'local') {
     return version.storageKey; // Return the local storage path

@@ -19,6 +19,7 @@ export interface ICreditLedgerEntry extends Document {
   reason: LedgerReason;
   refType: LedgerRefType;
   refId: Types.ObjectId;
+  notes?: string;
   idempotencyKey: string;
   hashPrev: string;
   hashSelf: string;
@@ -49,6 +50,10 @@ const creditLedgerEntrySchema = new Schema<ICreditLedgerEntry>(
     },
     refId: {
       type: Schema.Types.ObjectId,
+    },
+    notes: {
+      type: String,
+      trim: true,
     },
     idempotencyKey: {
       type: String,

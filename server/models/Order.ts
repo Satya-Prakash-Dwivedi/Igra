@@ -39,6 +39,9 @@ export interface IOrder extends Document {
   createdAt: Date;
   updatedAt: Date;
   approvedAt?: Date;
+  customDeadline?: Date;
+  rating?: number;
+  feedback?: string;
 }
 
 // ─── Schema ───────────────────────────────────────────────────
@@ -90,6 +93,18 @@ const orderSchema = new Schema<IOrder>(
     },
     submittedAt: Date,
     completedAt: Date,
+    rating: {
+      type: Number,
+      min: 1,
+      max: 5,
+    },
+    feedback: {
+      type: String,
+      trim: true,
+    },
+    customDeadline: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

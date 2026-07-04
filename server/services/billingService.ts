@@ -85,14 +85,14 @@ export async function createPurchase(
   let packName = '';
 
   if (packId === 'custom') {
-    if (!amountDollars || amountDollars < 5) throw new Error('Minimum custom purchase is $5');
+    if (!amountDollars || amountDollars < 5) throw Object.assign(new Error('Minimum custom purchase is $5'), { statusCode: 400 });
     amountCents = Math.round(amountDollars * 100);
     // 1 Dollar = 1 Credit
     creditsPurchased = Math.floor(amountDollars);
     packName = 'Custom';
   } else {
     const pack = CREDIT_PACKS.find(p => p.id === packId);
-    if (!pack) throw new Error(`Unknown credit pack: ${packId}`);
+    if (!pack) throw Object.assign(new Error(`Unknown credit pack: ${packId}`), { statusCode: 400 });
     amountCents = pack.priceCents;
     creditsPurchased = pack.credits;
     packName = pack.name;
@@ -195,7 +195,7 @@ export async function capturePurchase(
       userId,
     });
   }
-  if (!payment) throw new Error('Payment not found');
+  if (!payment) throw Object.assign(new Error('Payment not found'), { statusCode: 404 });
 
   if (payment.provider === 'razorpay') {
     if (razorpayAuthData && razorpayAuthData.razorpaySignature) {
@@ -206,7 +206,7 @@ export async function capturePurchase(
         .digest('hex');
 
       if (expectedSig !== razorpayAuthData.razorpaySignature) {
-        throw new Error('Invalid Razorpay signature');
+        throw Object.assign(new Error('Invalid Razorpay signature'), { statusCode: 401 });
       }
     }
   }
@@ -353,7 +353,7 @@ export async function getInvoiceDetail(invoiceId: string, userId: string) {
   const invoice = await Invoice.findOne({ _id: invoiceId, userId })
     .populate('paymentId', 'provider paypalOrderId paypalCaptureId razorpayOrderId razorpayPaymentId')
     .lean();
-  if (!invoice) throw new Error('Invoice not found');
+  if (!invoice) throw Object.assign(new Error('Invoice not found'), { statusCode: 404 });
   return invoice;
 }
 

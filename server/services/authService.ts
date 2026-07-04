@@ -36,7 +36,7 @@ import { OAuth2Client } from 'google-auth-library';
 
 export const verifyGoogleToken = async (idToken: string) => {
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    if (!clientId) throw new Error('Google Client ID is not configured');
+    if (!clientId) throw Object.assign(new Error('Google Client ID is not configured'), { statusCode: 400 });
     
     const client = new OAuth2Client(clientId);
     const ticket = await client.verifyIdToken({

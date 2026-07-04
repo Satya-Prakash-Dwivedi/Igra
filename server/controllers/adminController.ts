@@ -62,6 +62,25 @@ export const getDashboardStats = asyncHandler(async (_req: AuthRequest, res: Res
         statusMap.set(item._id, item.count);
     });
 
+    // ─── Operational Metrics ───────────────────────────────────────
+    const now = new Date();
+    const fortyEightHoursFromNow = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+    const activeStatuses = ['PENDING_PAYMENT', 'UNDER_REVIEW', 'IN_PROGRESS', 'FINALIZING', 'AWAITING_APPROVAL'];
+
+    const urgentOrders = await Order.find({
+        status: { $in: activeStatuses },
+        customDeadline: { $exists: true, $ne: null, $lte: fortyEightHoursFromNow } // Includes overdue and up to 48h from now, ignores null
+    }).populate('assignedTo', 'name').populate('userId', 'name').sort({ customDeadline: 1 }).limit(10);
+
+    const staffWorkload = await Order.aggregate([
+        { $match: { status: { $in: activeStatuses }, assignedTo: { $exists: true, $ne: null } } },
+        { $group: { _id: "$assignedTo", activeOrders: { $sum: 1 } } },
+        { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'staff' } },
+        { $unwind: "$staff" },
+        { $project: { staffId: "$_id", name: "$staff.name", activeOrders: 1, _id: 0 } },
+        { $sort: { activeOrders: -1 } }
+    ]);
+
     res.json({
         success: true,
         data: {
@@ -76,6 +95,8 @@ export const getDashboardStats = asyncHandler(async (_req: AuthRequest, res: Res
             cancelled:     statusMap.get('CANCELLED')    ?? 0,
             averageRating: result.averageRating[0]?.avg   ?? 0,
             revenueTimeline,
+            urgentOrders,
+            staffWorkload,
         },
     });
 });

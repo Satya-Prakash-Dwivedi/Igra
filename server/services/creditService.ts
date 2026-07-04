@@ -25,11 +25,11 @@ export async function appendLedgerEntry(opts: AppendLedgerOpts) {
 
   // 2. Get wallet + compute new balance
   const wallet = await CreditWallet.findById(opts.walletId);
-  if (!wallet) throw new Error('Credit wallet not found');
+  if (!wallet) throw Object.assign(new Error('Credit wallet not found'), { statusCode: 404 });
 
   const newBalance = wallet.balance + opts.delta;
   if (newBalance < 0) {
-    throw new Error(`Insufficient credits. Have: ${wallet.balance}, need: ${Math.abs(opts.delta)}`);
+    throw Object.assign(new Error(`Insufficient credits. Have: ${wallet.balance}, need: ${Math.abs(opts.delta)}`), { statusCode: 400 });
   }
 
   // 3. Get previous hash for chain

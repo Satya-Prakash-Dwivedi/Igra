@@ -7,7 +7,7 @@ export const createUser = async(userData : Partial<IUser>) => {
     // Check if user already exists
     const existingUser = await User.findOne({email : userData.email});
     if(existingUser){
-        throw new Error('User already exists');
+        throw Object.assign(new Error('User already exists'), { statusCode: 409 });
     }
 
     // Create new user
@@ -22,7 +22,7 @@ export const createUser = async(userData : Partial<IUser>) => {
 export const updateUserProfile = async (userId: string, updateData: any) => {
     const user = await User.findById(userId);
     if (!user) {
-        throw new Error('User not found');
+        throw Object.assign(new Error('User not found'), { statusCode: 404 });
     }
 
     // Map fields from flat input to nested structure
@@ -104,7 +104,7 @@ export async function listUsers(page: number, limit: number, search: string, exc
 
 export async function getUserDetail(userId: string) {
     const user = await User.findById(userId).select('-password').lean();
-    if (!user) throw new Error('User not found');
+    if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
 
     const [orders, tickets, bugs] = await Promise.all([
         Order.find({ userId }).sort({ createdAt: -1 }).lean(),
@@ -121,7 +121,7 @@ export async function getUserDetail(userId: string) {
 export const assignStaff = async (userId: string) => {
     const user = await User.findById(userId);
     if (!user) {
-        throw new Error('User not found');
+        throw Object.assign(new Error('User not found'), { statusCode: 404 });
     }
     
     user.role = 'staff';
@@ -134,7 +134,7 @@ export const assignStaff = async (userId: string) => {
 export const removeStaff = async (userId: string) => {
     const user = await User.findById(userId);
     if (!user) {
-        throw new Error('User not found');
+        throw Object.assign(new Error('User not found'), { statusCode: 404 });
     }
     
     user.role = 'user';

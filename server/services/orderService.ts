@@ -645,11 +645,11 @@ export async function listOrders(userId: string, status?: string, page = 1, limi
 
   const total = await Order.countDocuments(filter);
 
-  // Attach item count per order
+  // Attach item count and items per order
   const ordersWithCounts = await Promise.all(
     orders.map(async (o) => {
-      const itemCount = await OrderItem.countDocuments({ orderId: o._id });
-      return { ...o, itemCount };
+      const items = await OrderItem.find({ orderId: o._id }).lean();
+      return { ...o, itemCount: items.length, items };
     })
   );
 
@@ -749,4 +749,27 @@ async function notifyStatusChange(orderId: string, newStatus: string) {
   } catch (error) {
     console.error('Failed to send status update email or log event:', error);
   }
+}
+
+// ─── Submit Review (Client) ───────────────────────────────────
+export async function submitReview(orderId: string, userId: string, rating: number, feedback: string) {
+  const order = await Order.findOne({ _id: orderId, userId });
+  if (!order) throw new Error('Order not found');
+  if (order.status !== OrderStatus.COMPLETED) {
+    throw new Error('Can only review completed orders');
+  }
+
+  if (rating < 1 || rating > 5) {
+    throw new Error('Rating must be between 1 and 5');
+  }
+
+  order.rating = rating;
+  if (feedback) {
+    order.feedback = feedback;
+  }
+  
+  await order.save();
+  await auditService.appendOrderEvent(orderId, 'REVIEW_SUBMITTED', { rating, feedback }, userId);
+
+  return order;
 }

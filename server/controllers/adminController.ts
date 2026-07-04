@@ -25,6 +25,7 @@ export const getDashboardStats = asyncHandler(async (_req: AuthRequest, res: Res
                 pendingReview: [{ $match: { status: 'UNDER_REVIEW' } }, { $count: 'count' }],
                 inProgress:    [{ $match: { status: 'IN_PROGRESS' } }, { $count: 'count' }],
                 completed:     [{ $match: { status: 'COMPLETED' } }, { $count: 'count' }],
+                averageRating: [{ $match: { rating: { $exists: true, $ne: null } } }, { $group: { _id: null, avg: { $avg: '$rating' } } }],
             },
         },
     ]);
@@ -36,6 +37,7 @@ export const getDashboardStats = asyncHandler(async (_req: AuthRequest, res: Res
             pendingReview: result.pendingReview[0]?.count ?? 0,
             inProgress:    result.inProgress[0]?.count    ?? 0,
             completed:     result.completed[0]?.count     ?? 0,
+            averageRating: result.averageRating[0]?.avg   ?? 0,
         },
     });
 });

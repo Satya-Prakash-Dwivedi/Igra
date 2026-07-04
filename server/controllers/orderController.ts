@@ -98,6 +98,14 @@ export const completeReview = asyncHandler(async (req: AuthRequest, res: Respons
   res.json({ success: true, data: order });
 });
 
+// ─── Submit Review (Rating & Feedback) ────────────────────────
+export const submitReview = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const id = req.params.id as string;
+  const { rating, feedback } = req.body;
+  const order = await orderService.submitReview(id, req.user!._id.toString(), rating, feedback);
+  res.json({ success: true, data: order });
+});
+
 // ─── Finalize Order (Admin) ───────────────────────────────────
 export const finalizeOrder = asyncHandler(async (req: AuthRequest, res: Response) => {
   const id = req.params.id as string;

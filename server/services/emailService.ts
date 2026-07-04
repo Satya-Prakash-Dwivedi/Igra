@@ -47,13 +47,13 @@ export const sendVerificationEmail = async (email: string, token: string) => {
         if (!response.ok) {
             const errorData = await response.text();
             logger.error(`Brevo API error: ${response.status} ${errorData}`);
-            throw new Error(`Brevo API error: ${response.status}`);
+            throw Object.assign(new Error(`Brevo API error: ${response.status}`), { statusCode: 400 });
         }
 
         logger.info(`Verification email sent to ${email}`);
     } catch (error) {
         logger.error(`Error sending verification email to ${email}:`, error);
-        throw new Error('Failed to send verification email');
+        throw Object.assign(new Error('Failed to send verification email'), { statusCode: 400 });
     }
 };
 
@@ -100,13 +100,13 @@ export const sendPasswordResetEmail = async (email: string, token: string) => {
         if (!response.ok) {
             const errorData = await response.text();
             logger.error(`Brevo API error: ${response.status} ${errorData}`);
-            throw new Error(`Brevo API error: ${response.status}`);
+            throw Object.assign(new Error(`Brevo API error: ${response.status}`), { statusCode: 400 });
         }
 
         logger.info(`Password reset email sent to ${email}`);
     } catch (error) {
         logger.error(`Error sending password reset email to ${email}:`, error);
-        throw new Error('Failed to send password reset email');
+        throw Object.assign(new Error('Failed to send password reset email'), { statusCode: 400 });
     }
 };
 
@@ -257,7 +257,7 @@ export const sendFinalAssetsDeliveryEmail = async (order: any, user: any) => {
         if (!response.ok) {
             const errorData = await response.text();
             logger.error(`Brevo API error: ${response.status} ${errorData}`);
-            throw new Error(`Brevo API error: ${response.status}`);
+            throw Object.assign(new Error(`Brevo API error: ${response.status}`), { statusCode: 400 });
         }
 
         logger.info(`Final assets delivery email sent to ${user.email} for #${order.orderNumber}`);
@@ -467,7 +467,7 @@ export const sendRevisionDeliveredEmail = async (order: any, item: any, user: an
         if (!response.ok) {
             const errorData = await response.text();
             logger.error(`Brevo API error: ${response.status} ${errorData}`);
-            throw new Error(`Brevo API error: ${response.status}`);
+            throw Object.assign(new Error(`Brevo API error: ${response.status}`), { statusCode: 400 });
         }
 
         logger.info(`Revision delivered email sent to ${user.email} for #${order.orderNumber}`);

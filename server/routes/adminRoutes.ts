@@ -14,6 +14,7 @@ router.get('/dashboard',                          adminCtrl.getDashboardStats);
 
 // ─── Orders ───────────────────────────────────────────────────
 router.get('/orders',                             adminCtrl.listAllOrders);
+router.patch('/orders/:id/deadline',              adminCtrl.updateOrderDeadline);
 router.patch('/orders/:id/review',                adminCtrl.reviewOrder);
 router.patch('/orders/:id/assign',                adminCtrl.assignOrder);
 router.patch('/orders/:oid/items/:iid/status',    adminCtrl.transitionItemStatus);
@@ -31,6 +32,10 @@ router.post('/staff/:id/remove',                  adminCtrl.removeStaff);
 
 router.get('/users',                              adminCtrl.listUsers);
 router.get('/users/:id',                          adminCtrl.getUserDetail);
+router.post('/users/:id/credits',                 adminCtrl.grantCredits);
+
+// ─── Ledger ───────────────────────────────────────────────────
+router.get('/ledger',                             adminCtrl.listGlobalLedger);
 
 // ─── Support (Gap 6) ──────────────────────────────────────────
 router.get('/support/tickets',                    adminCtrl.listTickets);

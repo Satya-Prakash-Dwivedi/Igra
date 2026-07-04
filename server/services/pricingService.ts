@@ -6,7 +6,7 @@ export function computePricingSnapshot(
   params: Record<string, any>
 ): IPricingSnapshot {
   const def = SERVICE_CATALOG[kind];
-  if (!def) throw new Error(`Unknown service kind: ${kind}`);
+  if (!def) throw Object.assign(new Error(`Unknown service kind: ${kind}`), { statusCode: 400 });
 
   let base = def.baseCredits;
   const modifiers: { label: string; delta: number }[] = [];

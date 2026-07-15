@@ -148,7 +148,8 @@ export async function createPurchase(
     application_context: {
       return_url: `${process.env.CLIENT_URL}/credits?paypalFlow=true`,
       cancel_url: `${process.env.CLIENT_URL}/credits?paypalCancel=true`,
-      user_action: 'PAY_NOW'
+      user_action: 'PAY_NOW',
+      landing_page: 'LOGIN'
     }
   });
 

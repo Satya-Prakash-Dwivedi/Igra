@@ -309,7 +309,7 @@ export async function handlePayPalWebhook(paypalOrderId: string, eventType: stri
 
   if (payment.status === PaymentStatus.CAPTURED) return;
 
-  if (eventType === 'PAYMENT.CAPTURE.COMPLETED') {
+  if (eventType === 'PAYMENT.CAPTURE.COMPLETED' || eventType === 'CHECKOUT.ORDER.APPROVED') {
     await capturePurchase(payment._id.toString(), payment.userId.toString());
   }
 }
